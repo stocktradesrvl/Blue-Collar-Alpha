@@ -1,0 +1,40 @@
+{
+  "summary": "Backend-only testing for TradeMind AI Stripe payments feature + regression on login, dashboard/stats, analyze-screenshot. Ran 16 pytest cases in /app/backend/tests/test_payments.py — all 16 PASSED (100%). Verified: (1) POST /api/payments/create-checkout-session requires auth (401), rejects invalid/free tier (400), returns real https://checkout.stripe.com URL and cs_test_... session_id for both pro and premium; (2) server-side price authority — retrieved sessions from Stripe API confirm pro unit_amount=2900 cents and premium unit_amount=7900 cents even when the client sends conflicting amount/unit_amount/price fields (they are ignored); (3) pending payment record inserted in Mongo with correct tier/amount/session_id/status='pending' (verified 14 rows via motor client); (4) GET /api/payments/redirect returns 200 HTML with meta-refresh + JS redirect, propagates session_id and status=success or status=cancel; (5) GET /api/payments/status requires auth (401), rejects unknown session (400), returns 403 on user_id metadata mismatch (verified with a freshly-registered second user), and for a not-yet-paid session returns paid=false with user's subscription_tier UNCHANGED (verified via both response and /api/auth/me); (6) regression — /api/auth/login returns token+user, /api/dashboard/stats returns full stats shape, /api/trades/analyze-screenshot on free tier still succeeds and returns full trade JSON incl. setup_grade A-F. NOTE (as flagged in the review request): fully completing a hosted Stripe Checkout session programmatically to observe paid=true + tier upgrade requires a real browser + card 4242 or Stripe test helpers not usable from outside a real card flow; the not-paid path was verified end-to-end and the paid branch in server.py is straightforward and correct on inspection.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_payments.py",
+    "/app/test_reports/pytest/payments_results.xml"
+  ],
+  "action_items": [
+    "Manual browser verification recommended for the full paid flow: use the returned checkout_url, complete with card 4242 4242 4242 4242, then poll /api/payments/status and confirm paid=true, tier upgraded, payment row status='completed'. Automated tests could not complete the hosted Checkout page.",
+    "Optional: consider persisting subscription_id from the Stripe session on the payment record for future cancel/refund flows (nice-to-have, not blocking)."
+  ],
+  "critical_code_review_comments": [
+    "server.py: /payments/status correctly re-fetches the session from Stripe and only upgrades the tier when session.status=='complete' AND payment_status in ('paid','no_payment_required') — this satisfies the 'never trust the client' requirement and handles the premium trial case (no_payment_required).",
+    "server.py: metadata.user_id check before granting the tier prevents session-id spoofing across users (verified: 403 returned).",
+    "server.py: price_data.unit_amount is set from server-side STRIPE_PACKAGES dict; the CheckoutIn model has no amount field so client-sent 'amount'/'unit_amount' are dropped by Pydantic — confirmed by retrieving the created session from Stripe.",
+    "Minor: bare 'except Exception' on stripe.Session.retrieve returns 400 for both truly-invalid IDs and transient Stripe outages; not a blocker but distinguishing would improve observability.",
+    "Minor: STRIPE_SECRET_KEY is committed to backend/.env (sk_test_ — acceptable for test mode but should never be a live key in the repo)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_payments.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "not tested (backend-only request)"
+  },
+  "seed_data_creation": "Test run created ~14 pending payment rows in db.payments and 1 secondary user (TEST_pay_<uuid>@test.com) for the user-mismatch 403 test. All test data prefixed/isolated; no seeded/production data was modified. The trader@test.com tier was reset to 'free' during the run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_payments.py is idempotent and can be re-run. It relies on EXPO_PUBLIC_BACKEND_URL (from frontend/.env) and STRIPE_SECRET_KEY (from backend/.env). To reproduce a complete-payment scenario, open the checkout_url from test_create_pro_session in a browser with card 4242 4242 4242 4242, then GET /api/payments/status?session_id=... with the trader@test.com bearer to observe paid=true and subscription_tier=='pro'. Note: conftest.py uses EXPO_PUBLIC_BACKEND_URL with a hardcoded fallback — env var must be exported when running outside the default preview host.",
+  "rca_of_issue": "N/A — no bugs found. One initially-failing test (test_premium_amount_is_7900) was a test-authoring error on my end: for a subscription with trial_period_days>0 Stripe returns amount_total=0 on the un-paid Session because no charge is made during trial; the correct assertion is on line_items[0].price.unit_amount==7900, which passed after the fix."
+}

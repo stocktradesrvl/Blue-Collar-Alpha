@@ -22,6 +22,17 @@ db = client[os.environ['DB_NAME']]
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 JWT_SECRET = os.environ.get('JWT_SECRET', 'dev_secret')
+import stripe
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+from urllib.parse import quote
+stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
+BACKEND_URL = os.environ.get('EXPO_BACKEND_URL') or ''
+# Fixed server-side pricing (never trust client amounts). Amounts in cents.
+STRIPE_PACKAGES = {
+    "pro": {"name": "TradeMind Pro", "amount": 2900, "trial_days": 0},
+    "premium": {"name": "TradeMind Premium", "amount": 7900, "trial_days": 7},
+}
 ALGO = "HS256"
 TIER_LEVEL = {"free": 0, "pro": 1, "premium": 2}
 FREE_MONTHLY_LIMIT = 20
@@ -373,6 +384,80 @@ async def coach_chat(inp: ChatIn, user=Depends(get_current_user)):
 async def coach_history(user=Depends(get_current_user)):
     msgs = await db.chat_messages.find({"user_id": user["id"]}).sort("created_at", 1).to_list(200)
     return [{"role": m["role"], "content": m["content"]} for m in msgs]
+
+# ---------- Stripe payments ----------
+class CheckoutIn(BaseModel):
+    tier: str
+    origin: str
+    return_url: str
+
+@api.post("/payments/create-checkout-session")
+async def create_checkout(inp: CheckoutIn, user=Depends(get_current_user)):
+    tier = inp.tier.lower()
+    if tier not in STRIPE_PACKAGES:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    pkg = STRIPE_PACKAGES[tier]
+    success_url = f"{inp.origin}/api/payments/redirect?rt={quote(inp.return_url)}&session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{inp.origin}/api/payments/redirect?rt={quote(inp.return_url)}&status=cancel"
+    sub_data = {"trial_period_days": pkg["trial_days"]} if pkg["trial_days"] > 0 else {}
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            customer_email=user["email"],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": pkg["name"]},
+                    "unit_amount": pkg["amount"],
+                    "recurring": {"interval": "month"},
+                },
+                "quantity": 1,
+            }],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            subscription_data=sub_data,
+            metadata={"user_id": user["id"], "tier": tier},
+        )
+    except Exception as e:
+        logger.error(f"stripe create err {e}")
+        raise HTTPException(status_code=502, detail="Could not start checkout")
+    await db.payments.insert_one({
+        "id": str(uuid.uuid4()), "user_id": user["id"], "tier": tier,
+        "amount": pkg["amount"], "currency": "usd", "session_id": session.id,
+        "status": "pending", "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"checkout_url": session.url, "session_id": session.id}
+
+@api.get("/payments/redirect", response_class=HTMLResponse)
+async def payment_redirect(rt: str, session_id: str = "", status: str = ""):
+    sep = "&" if "?" in rt else "?"
+    target = f"{rt}{sep}session_id={quote(session_id)}&status={status or 'success'}"
+    return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="0;url={target}"><title>Redirecting…</title></head>
+<body style="background:#121212;color:#fff;font-family:sans-serif;text-align:center;padding-top:80px">
+<p>Payment {'cancelled' if status=='cancel' else 'complete'}. Returning to the app…</p>
+<a href="{target}" style="color:#FFB74D">Tap here if not redirected</a>
+<script>window.location.href="{target}";</script></body></html>""")
+
+@api.get("/payments/status")
+async def payment_status(session_id: str, user=Depends(get_current_user)):
+    # Server-side verification: only grant tier if Stripe confirms the session is complete.
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Invalid session")
+    meta = session.get("metadata") or {}
+    if meta.get("user_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Session mismatch")
+    paid = session.get("status") == "complete" and session.get("payment_status") in ("paid", "no_payment_required")
+    if paid:
+        tier = meta.get("tier", "free")
+        await db.payments.update_one({"session_id": session_id},
+            {"$set": {"status": "completed", "updated_at": datetime.now(timezone.utc).isoformat()}})
+        await db.users.update_one({"id": user["id"]}, {"$set": {"subscription_tier": tier}})
+    u = await db.users.find_one({"id": user["id"]})
+    return {"paid": paid, "session_status": session.get("status"),
+            "payment_status": session.get("payment_status"), "user": public_user(u)}
 
 @api.get("/")
 async def root():

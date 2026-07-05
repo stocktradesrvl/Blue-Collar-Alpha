@@ -1,8 +1,10 @@
-import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/context/ToastContext";
 import { colors, spacing, radius, font, fs } from "@/src/theme";
@@ -10,18 +12,43 @@ import { colors, spacing, radius, font, fs } from "@/src/theme";
 const PLANS = [
   { tier: "free", name: "Free", price: "$0", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
   { tier: "pro", name: "Pro", price: "$29/mo", features: ["Unlimited trades", "Chart screenshot analysis", "Setup grading A–F", "Strategy rule checks"] },
-  { tier: "premium", name: "Premium", price: "$79/mo", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
+  { tier: "premium", name: "Premium", price: "$79/mo", badge: "7-day free trial", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
 ];
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { user, logout, setTier } = useAuth();
+  const { user, logout, setTier, refresh } = useAuth();
   const toast = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
 
   const change = async (tier: string) => {
-    try { await setTier(tier); toast(`Switched to ${tier} plan`, "success"); }
-    catch (e: any) { toast(e.message, "error"); }
+    if (tier === "free") {
+      try { await setTier("free"); toast("Switched to Free plan", "info"); }
+      catch (e: any) { toast(e.message, "error"); }
+      return;
+    }
+    setBusy(tier);
+    try {
+      const returnUrl = Linking.createURL("payment-complete");
+      const { checkout_url, session_id } = await api.post("/payments/create-checkout-session", {
+        tier, origin: process.env.EXPO_PUBLIC_BACKEND_URL, return_url: returnUrl,
+      });
+      const res = await WebBrowser.openAuthSessionAsync(checkout_url, returnUrl);
+      if (res.type === "success" && res.url) {
+        const parsed = Linking.parse(res.url);
+        if (parsed.queryParams?.status === "cancel") { toast("Checkout cancelled", "info"); }
+        else {
+          const r = await api.get(`/payments/status?session_id=${session_id}`);
+          if (r.paid) { await refresh(); toast(`Welcome to ${tier === "premium" ? "Premium" : "Pro"}!`, "success"); }
+          else toast("Payment not confirmed yet. Pull to refresh shortly.", "info");
+        }
+      } else {
+        // Browser dismissed — verify anyway in case payment completed.
+        const r = await api.get(`/payments/status?session_id=${session_id}`).catch(() => null);
+        if (r?.paid) { await refresh(); toast(`Welcome to ${tier}!`, "success"); }
+      }
+    } catch (e: any) { toast(e.message || "Payment failed", "error"); }
+    finally { setBusy(null); }
   };
 
   return (
@@ -41,14 +68,18 @@ export default function Profile() {
           return (
             <View key={p.tier} style={[styles.plan, active && styles.planActive]}>
               <View style={styles.planTop}>
-                <Text style={styles.planName}>{p.name}</Text>
+                <View style={styles.planNameWrap}>
+                  <Text style={styles.planName}>{p.name}</Text>
+                  {p.badge ? <View style={styles.trialBadge}><Text style={styles.trialTxt}>{p.badge}</Text></View> : null}
+                </View>
                 <Text style={styles.planPrice}>{p.price}</Text>
               </View>
               {p.features.map((f) => (
                 <View key={f} style={styles.feat}><Ionicons name="checkmark" size={16} color={colors.success} /><Text style={styles.featTxt}>{f}</Text></View>
               ))}
-              <Pressable testID={`select-${p.tier}`} disabled={active} style={[styles.planBtn, active && styles.planBtnActive]} onPress={() => change(p.tier)}>
-                <Text style={[styles.planBtnTxt, active && { color: colors.onSurface2 }]}>{active ? "Current Plan" : `Switch to ${p.name}`}</Text>
+              <Pressable testID={`select-${p.tier}`} disabled={active || busy !== null} style={[styles.planBtn, active && styles.planBtnActive]} onPress={() => change(p.tier)}>
+                {busy === p.tier ? <ActivityIndicator color={colors.onBrand} /> :
+                  <Text style={[styles.planBtnTxt, active && { color: colors.onSurface2 }]}>{active ? "Current Plan" : p.tier === "free" ? "Downgrade to Free" : `Upgrade to ${p.name}`}</Text>}
               </Pressable>
             </View>
           );
@@ -74,7 +105,10 @@ const styles = StyleSheet.create({
   plan: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },
   planActive: { borderColor: colors.brand },
   planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: spacing.xs },
+  planNameWrap: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexShrink: 1 },
   planName: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["2xl"] },
+  trialBadge: { backgroundColor: colors.success + "22", borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  trialTxt: { color: colors.success, fontFamily: font.text, fontSize: fs.sm },
   planPrice: { color: colors.brand, fontFamily: font.displayBold, fontSize: fs.xl },
   feat: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   featTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
