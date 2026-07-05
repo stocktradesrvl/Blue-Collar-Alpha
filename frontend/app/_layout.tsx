@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Font from "expo-font";
 import { useEffect, useState } from "react";
@@ -8,7 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
-import { AuthProvider } from "@/src/context/AuthContext";
+import { AuthProvider, useAuth } from "@/src/context/AuthContext";
 import { ToastProvider } from "@/src/context/ToastContext";
 import { colors } from "@/src/theme";
 
@@ -35,6 +35,29 @@ function useAppFonts() {
   return done;
 }
 
+function RootNavigator() {
+  const { user, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    const inAuthGroup = segments[0] === "(auth)";
+    if (!user && !inAuthGroup) {
+      router.replace("/(auth)/login");
+    } else if (user && inAuthGroup) {
+      router.replace("/(tabs)");
+    }
+  }, [user, loading, segments, router]);
+
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
+      <Stack.Screen name="upload" options={{ presentation: "modal" }} />
+      <Stack.Screen name="analyze" options={{ presentation: "modal" }} />
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
   const fontsDone = useAppFonts();
@@ -51,10 +74,7 @@ export default function RootLayout() {
         <AuthProvider>
           <ToastProvider>
             <StatusBar style="light" />
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
-              <Stack.Screen name="upload" options={{ presentation: "modal" }} />
-              <Stack.Screen name="analyze" options={{ presentation: "modal" }} />
-            </Stack>
+            <RootNavigator />
           </ToastProvider>
         </AuthProvider>
       </SafeAreaProvider>
