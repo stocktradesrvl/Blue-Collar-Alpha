@@ -38,6 +38,8 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 - Frontend screens: Login/Register, Dashboard(+FAB, report, chart-analyze), Journal, Coach, Strategy Builder, Profile/Plans, Upload modal, Chart Analyze modal, Trade Detail, Report
 - Camera/photo permissions declared (app.json)
 - Backend tested: 19/24 initially; screenshot 502 (LLM latency) fixed via max_tokens cap → verified 200 in ~6s, dashboard/trades reflect data.
+- **Stripe payments (2026-07-05):** Checkout (subscription mode) for Pro $29 / Premium $79 w/ 7-day trial on Premium; server-side fixed prices; /payments/create-checkout-session, /payments/redirect (deep-link back), /payments/status (server-verified fulfillment before granting tier), /payments/cancel (cancels Stripe sub + downgrade), /payments/webhook (checkout.session.completed, customer.subscription.deleted, invoice.payment_failed). 16/16 payment backend tests pass. Frontend: Profile upgrade buttons via expo-web-browser + Linking; trial badge; Downgrade-to-Free cancels the Stripe subscription.
+- Requires STRIPE_WEBHOOK_SECRET set + webhook endpoint (/api/payments/webhook) configured in Stripe Dashboard AFTER deploy for auto-renewal/cancel events; preview uses secure session-polling.
 
 ## Backlog / Remaining
 - P1: Options Greeks/IV analysis; Futures MFE/MAE, hold-time, "profit left on table"

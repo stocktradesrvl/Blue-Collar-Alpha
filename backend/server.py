@@ -453,11 +453,63 @@ async def payment_status(session_id: str, user=Depends(get_current_user)):
     if paid:
         tier = meta.get("tier", "free")
         await db.payments.update_one({"session_id": session_id},
-            {"$set": {"status": "completed", "updated_at": datetime.now(timezone.utc).isoformat()}})
-        await db.users.update_one({"id": user["id"]}, {"$set": {"subscription_tier": tier}})
+            {"$set": {"status": "completed", "stripe_subscription_id": session.get("subscription"),
+                      "stripe_customer_id": session.get("customer"),
+                      "updated_at": datetime.now(timezone.utc).isoformat()}})
+        await db.users.update_one({"id": user["id"]}, {"$set": {
+            "subscription_tier": tier, "stripe_subscription_id": session.get("subscription"),
+            "stripe_customer_id": session.get("customer")}})
     u = await db.users.find_one({"id": user["id"]})
     return {"paid": paid, "session_status": session.get("status"),
             "payment_status": session.get("payment_status"), "user": public_user(u)}
+
+@api.post("/payments/cancel")
+async def cancel_subscription(user=Depends(get_current_user)):
+    sub_id = user.get("stripe_subscription_id")
+    if not sub_id:
+        raise HTTPException(status_code=400, detail="No active subscription")
+    try:
+        stripe.Subscription.cancel(sub_id)
+    except Exception as e:
+        logger.error(f"cancel err {e}")
+        raise HTTPException(status_code=502, detail="Could not cancel subscription")
+    await db.users.update_one({"id": user["id"]},
+        {"$set": {"subscription_tier": "free", "stripe_subscription_id": None}})
+    u = await db.users.find_one({"id": user["id"]})
+    return {"ok": True, "user": public_user(u)}
+
+@api.post("/payments/webhook")
+async def stripe_webhook(request: Request):
+    secret = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+    body = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    if not secret:
+        raise HTTPException(status_code=400, detail="Webhook not configured")
+    try:
+        event = stripe.Webhook.construct_event(payload=body, sig_header=sig, secret=secret)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid signature: {e}")
+    etype = event["type"]
+    obj = event["data"]["object"]
+    if etype == "checkout.session.completed":
+        meta = obj.get("metadata") or {}
+        uid = meta.get("user_id"); tier = meta.get("tier")
+        if uid and tier:
+            await db.users.update_one({"id": uid}, {"$set": {
+                "subscription_tier": tier, "stripe_subscription_id": obj.get("subscription"),
+                "stripe_customer_id": obj.get("customer")}})
+            await db.payments.update_one({"session_id": obj.get("id")},
+                {"$set": {"status": "completed", "updated_at": datetime.now(timezone.utc).isoformat()}})
+    elif etype == "customer.subscription.deleted":
+        # Subscription ended/cancelled -> downgrade to free.
+        await db.users.update_one({"stripe_subscription_id": obj.get("id")},
+            {"$set": {"subscription_tier": "free", "stripe_subscription_id": None}})
+    elif etype == "invoice.payment_failed":
+        cust = obj.get("customer")
+        if cust:
+            await db.users.update_one({"stripe_customer_id": cust},
+                {"$set": {"subscription_tier": "free"}})
+    return {"received": True}
 
 @api.get("/")
 async def root():

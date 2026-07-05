@@ -23,8 +23,14 @@ export default function Profile() {
 
   const change = async (tier: string) => {
     if (tier === "free") {
-      try { await setTier("free"); toast("Switched to Free plan", "info"); }
-      catch (e: any) { toast(e.message, "error"); }
+      setBusy("free");
+      try {
+        if (user?.subscription_tier !== "free") {
+          const r = await api.post("/payments/cancel");
+          if (r.ok) { await refresh(); toast("Subscription cancelled", "info"); }
+        } else { await setTier("free"); }
+      } catch (e: any) { toast(e.message, "error"); }
+      finally { setBusy(null); }
       return;
     }
     setBusy(tier);
