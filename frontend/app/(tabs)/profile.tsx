@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
@@ -17,6 +18,7 @@ const PLANS = [
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { user, logout, setTier, refresh } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -69,6 +71,11 @@ export default function Profile() {
         </View>
 
         <Text style={styles.section}>Subscription Plans</Text>
+        <Pressable testID="manage-billing" style={styles.billingRow} onPress={() => router.push("/billing")}>
+          <Ionicons name="receipt-outline" size={20} color={colors.brand} />
+          <Text style={styles.billingTxt}>Manage Billing & Invoices</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+        </Pressable>
         {PLANS.map((p) => {
           const active = user?.subscription_tier === p.tier;
           return (
@@ -108,6 +115,8 @@ const styles = StyleSheet.create({
   tierBadge: { alignSelf: "flex-start", backgroundColor: colors.brandTint, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2, marginTop: spacing.xs },
   tierBadgeTxt: { color: colors.brand, fontFamily: font.text, fontSize: fs.sm, letterSpacing: 1 },
   section: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.md },
+  billingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
+  billingTxt: { flex: 1, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   plan: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },
   planActive: { borderColor: colors.brand },
   planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: spacing.xs },

@@ -511,6 +511,46 @@ async def stripe_webhook(request: Request):
                 {"$set": {"subscription_tier": "free"}})
     return {"received": True}
 
+@api.get("/payments/billing")
+async def billing_info(user=Depends(get_current_user)):
+    cust = user.get("stripe_customer_id")
+    if not cust:
+        return {"has_subscription": False, "tier": user.get("subscription_tier", "free"), "subscription": None, "invoices": []}
+    sub_info = None
+    sub_id = user.get("stripe_subscription_id")
+    if sub_id:
+        try:
+            s = stripe.Subscription.retrieve(sub_id)
+            item = (s.get("items", {}).get("data") or [{}])[0]
+            price = item.get("price") or {}
+            sub_info = {
+                "status": s.get("status"),
+                "amount": (price.get("unit_amount") or 0) / 100,
+                "interval": (price.get("recurring") or {}).get("interval", "month"),
+                "current_period_end": datetime.fromtimestamp(s["current_period_end"], timezone.utc).isoformat() if s.get("current_period_end") else None,
+                "trial_end": datetime.fromtimestamp(s["trial_end"], timezone.utc).isoformat() if s.get("trial_end") else None,
+                "cancel_at_period_end": s.get("cancel_at_period_end", False),
+            }
+        except Exception as e:
+            logger.error(f"sub retrieve err {e}")
+    invoices = []
+    try:
+        inv = stripe.Invoice.list(customer=cust, limit=12)
+        for i in inv.get("data", []):
+            invoices.append({
+                "number": i.get("number"),
+                "amount": (i.get("amount_paid") or 0) / 100,
+                "currency": (i.get("currency") or "usd").upper(),
+                "status": i.get("status"),
+                "created": datetime.fromtimestamp(i["created"], timezone.utc).isoformat() if i.get("created") else None,
+                "pdf": i.get("invoice_pdf"),
+                "url": i.get("hosted_invoice_url"),
+            })
+    except Exception as e:
+        logger.error(f"invoice list err {e}")
+    return {"has_subscription": sub_info is not None, "tier": user.get("subscription_tier", "free"),
+            "subscription": sub_info, "invoices": invoices}
+
 @api.get("/")
 async def root():
     return {"message": "TradeMind AI API"}
