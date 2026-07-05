@@ -6,7 +6,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs, money, pnlColor } from "@/src/theme";
 import { StatCard, EquityCurve } from "@/src/components/ui";
-import { useAuth } from "@/src/context/AuthContext";
 
 const RANGES: Record<string, number> = { "1W": 8, "1M": 31, ALL: 9999 };
 
@@ -14,13 +13,22 @@ export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { user } = useAuth();
   const [stats, setStats] = useState<any>(null);
+  const [trial, setTrial] = useState<{ days: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<keyof typeof RANGES>("ALL");
 
   const load = useCallback(async () => {
     try { setStats(await api.get("/dashboard/stats")); } catch {}
+    try {
+      const b = await api.get("/payments/billing");
+      const end = b?.subscription?.trial_end;
+      if (end && b?.subscription?.status === "trialing") {
+        const days = Math.ceil((new Date(end).getTime() - Date.now()) / 86400000);
+        if (days >= 0 && days <= 3) setTrial({ days });
+        else setTrial(null);
+      } else setTrial(null);
+    } catch {}
     setLoading(false);
   }, []);
 
@@ -37,6 +45,15 @@ export default function Dashboard() {
     <View style={styles.flex}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 120, paddingHorizontal: spacing.lg }}
         refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={colors.brand} />}>
+        {trial && (
+          <Pressable testID="trial-banner" style={styles.trialBanner} onPress={() => router.push("/billing")}>
+            <Ionicons name="time-outline" size={20} color={colors.onBrand} />
+            <Text style={styles.trialTxt}>
+              {trial.days === 0 ? "Your Premium trial ends today" : `Premium trial ends in ${trial.days} day${trial.days === 1 ? "" : "s"}`}
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.onBrand} />
+          </Pressable>
+        )}
         <View style={styles.header}>
           <View>
             <Text style={styles.hi}>Account Balance</Text>
@@ -116,6 +133,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.surface },
   center: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: spacing.lg },
+  trialBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.brand, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg },
+  trialTxt: { flex: 1, color: colors.onBrand, fontFamily: font.display, fontSize: fs.base },
   hi: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1 },
   balance: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: 40 },
   dailyPill: { backgroundColor: colors.surface2, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, alignItems: "flex-end" },
