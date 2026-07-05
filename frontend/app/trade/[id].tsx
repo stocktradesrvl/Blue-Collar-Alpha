@@ -85,6 +85,31 @@ export default function TradeDetail() {
             <Ionicons name="sparkles" size={16} color={colors.brand} />
             <Text style={styles.aiTxt}>{trade.ai_summary || "No summary available."}</Text>
           </View>
+
+          {trade.advanced && Object.keys(trade.advanced).length > 0 && (
+            <>
+              <Text style={styles.section}>{trade.asset_type === "option" ? "Options Analysis" : trade.asset_type === "future" ? "Futures Analysis" : "Advanced Analysis"}</Text>
+              <View style={styles.advCard}>
+                {Object.entries(trade.advanced).map(([k, v]) => {
+                  if (v === null || v === undefined || v === "") return null;
+                  const label = k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                  const isFlag = typeof v === "boolean";
+                  return (
+                    <View key={k} style={styles.advRow}>
+                      <Text style={styles.advLabel}>{label}</Text>
+                      {isFlag ? (
+                        <View style={[styles.advFlag, { backgroundColor: (v ? colors.error : colors.success) + "22" }]}>
+                          <Text style={[styles.advFlagTxt, { color: v ? colors.error : colors.success }]}>{v ? "Yes" : "No"}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.advVal}>{String(v)}</Text>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -128,4 +153,10 @@ const styles = StyleSheet.create({
   violationTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, flex: 1 },
   aiCard: { flexDirection: "row", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.brand },
   aiTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, lineHeight: 22, flex: 1 },
+  advCard: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg },
+  advRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  advLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, flex: 1 },
+  advVal: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg, marginLeft: spacing.md },
+  advFlag: { borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 2 },
+  advFlagTxt: { fontFamily: font.text, fontSize: fs.base },
 });

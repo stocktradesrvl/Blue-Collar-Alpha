@@ -1,0 +1,50 @@
+{
+  "summary": "Backend-only regression + new-feature testing for TradeMind AI: (a) escalating referral reward and (b) options/futures advanced analysis, plus full auth/trades/strategies/dashboard/reports/coach/payments regression. Ran 58 pytest cases across 3 files — ALL 58 PASSED (100%). New file /app/backend/tests/test_referral_and_advanced.py adds 18 targeted tests. Verified: (1) POST /api/auth/register accepts optional referral_code; new user with valid code gets bonus_trades=20 and referrer gets +20 bonus_trades and referral_count+1; invalid/absent code => bonus_trades=0; every user gets a unique 6-char uppercase-hex referral_code; case-insensitive code lookup works. (2) Milestone: after 3 successful referrals, referrer's reward_pro_until is set ~30 days out, /auth/me returns subscription_tier='pro' (effective) while raw_tier='free', AND the same user successfully calls Pro-gated POST /api/trades/analyze-chart (returned 200 with trend/patterns/support/resistance/setup_grade/analysis) even though they never paid. (3) Effective-tier gating: free => analyze-chart 402 and coach/chat 402; premium => coach/chat 200. (4) Options/Futures 'advanced' field: POST /api/trades/analyze-screenshot returns 'advanced' as a dict (may be empty for stocks) and GET /api/trades/{id} persists it (verified via re-fetch). (5) Free-limit formula: verified in code (FREE_MONTHLY_LIMIT=20 + user.bonus_trades) and error message; /auth/me exposes bonus_trades/referral_count so the frontend can render 'trades left'; a referrer with 1 referral shows bonus_trades=20, referral_count=1, tier=free. (6) Payments regression: create-checkout-session for pro & premium returns real checkout.stripe.com URL + cs_test_ session_id with server-side pricing (2900/7900 cents) authoritative; /status not-paid => paid=false and NO tier change (double-checked via /auth/me); /billing returns {has_subscription, tier, invoices[]} shape; /cancel with no sub => 400; /webhook without signature => 400. (7) Core regression: auth register/login/me, strategies CRUD, dashboard/stats, reports/daily, trades list/detail/delete all pass. Total execution ~68s including AI (Claude Sonnet 4.6 vision) calls.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/register (referral_code)", "issue": "gen_referral_code() uses uuid4.hex[:6].upper() which is hex-only and can produce all-digit codes (e.g. '741637'). Docs say '6 uppercase chars'. Not a bug, but if you want alpha in every code use a base32/A-Z0-9 generator. Also, no explicit collision check — extremely unlikely at 16^6=16.7M space but worth noting."},
+      {"endpoint": "POST /api/auth/register (referral_code)", "issue": "A user can self-refer if they somehow know/guess their own code (would only be possible after register — but the guard-against-self-refer is worth adding as defence-in-depth)."},
+      {"endpoint": "GET /api/payments/status", "issue": "Bare except on stripe.checkout.Session.retrieve returns 400 for both truly-invalid IDs and transient Stripe outages; distinguishing improves observability. (Carry-over from iter 1.)"},
+      {"endpoint": "DELETE /api/trades/{id}", "issue": "Idempotent — returns 200 {ok:true} even for a non-existent id. Consistent behaviour, but a 404 on unknown ids may be more RESTful."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_referral_and_advanced.py",
+    "/app/backend/tests/test_payments.py",
+    "/app/backend/tests/test_trademind_api.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/referral_results.xml"
+  ],
+  "action_items": [
+    "None blocking. Optional hardening: (a) forbid self-referral (referrer.id == new user's id can't happen at register, but explicit check documents intent); (b) add uniqueness index on users.referral_code; (c) consider awarding the referral bonus only after the referred user completes verification/first login to prevent farming."
+  ],
+  "critical_code_review_comments": [
+    "server.py:73 effective_tier() correctly bumps free -> pro when reward_pro_until is in the future; both gated endpoints (analyze-chart, coach/chat) use TIER_LEVEL.get(effective_tier(user), 0) which is the right pattern.",
+    "server.py:138 register() atomically increments referrer bonus_trades and referral_count via $inc and sets reward_pro_until in the same update when new_count % REFERRAL_MILESTONE == 0. This means the reward escalates every 3 (not only at 3) — matches the spec 'escalating'.",
+    "server.py:173 /auth/me idempotently backfills referral_code for legacy users — verified.",
+    "server.py:220 analyze-screenshot free-limit correctly formulas FREE_MONTHLY_LIMIT + bonus_trades and returns a clear 402 message that mentions upgrade + invite friends.",
+    "server.py:246-252 the LLM prompt explicitly asks for advanced.{delta,gamma,theta,vega,IV,overpaying_premium,suggested_strike,suggested_expiration} for options and {mfe,mae,hold_time,profit_left_on_table,entry_quality} for futures — matches spec. Persisted via doc['advanced']=data.get('advanced') or {}.",
+    "server.py:566 /payments/billing gracefully returns empty invoices when no customer — 200 not 500 for a user who never subscribed.",
+    "server.py:532 /payments/webhook returns 400 for missing secret AND for invalid signature — safer than 500.",
+    "Minor: server.py file is 615 lines — approaching the 700-line limit; consider splitting into auth.py / trades.py / payments.py routers when it grows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_referral_and_advanced.py (new, 18 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (58/58 tests passed)",
+    "frontend": "not tested (backend-only request)"
+  },
+  "seed_data_creation": "Created ~10 fresh TEST_ref_<uuid>@test.com users to exercise referral + milestone flows (each with a unique referral_code) and ~5 additional TEST_pay_<uuid>@test.com users from prior/payments tests. All prefixed with TEST_; no seeded/production data modified. trader@test.com tier is reset to 'free' at end of TestEffectiveTierGating and other suites.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend/tests && EXPO_PUBLIC_BACKEND_URL=$(grep EXPO_PUBLIC_BACKEND_URL /app/frontend/.env | cut -d= -f2) STRIPE_SECRET_KEY=$(grep '^STRIPE_SECRET_KEY' /app/backend/.env | cut -d= -f2) pytest -v. Tests are idempotent. The full paid-Stripe flow (paid=true + tier upgrade) still requires a real browser to complete Checkout with card 4242 — automated coverage stops at the not-paid branch. Suite runs in ~68s (limited by Claude vision calls in analyze-screenshot / analyze-chart / coach/chat / daily-report).",
+  "rca_of_issue": "N/A — no defects found. One initially-failing test assertion (referral_code.isupper()) was too strict for the hex-only implementation; corrected to `code == code.upper()` + alnum, matching the actual (and acceptable) implementation."
+}

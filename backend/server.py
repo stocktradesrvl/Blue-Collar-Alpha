@@ -36,6 +36,8 @@ STRIPE_PACKAGES = {
 ALGO = "HS256"
 TIER_LEVEL = {"free": 0, "pro": 1, "premium": 2}
 FREE_MONTHLY_LIMIT = 20
+REFERRAL_MILESTONE = 3          # invite 3 friends -> free month of Pro
+REWARD_PRO_DAYS = 30
 
 app = FastAPI()
 api = APIRouter(prefix="/api")
@@ -68,11 +70,23 @@ async def get_current_user(token: str = Depends(oauth2)):
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+def effective_tier(u: dict) -> str:
+    base = u.get("subscription_tier", "free")
+    rp = u.get("reward_pro_until")
+    if rp:
+        try:
+            if datetime.fromisoformat(rp) > datetime.now(timezone.utc) and TIER_LEVEL[base] < 1:
+                base = "pro"
+        except Exception:
+            pass
+    return base
+
 def public_user(u: dict) -> dict:
-    return {"id": u["id"], "email": u["email"], "subscription_tier": u.get("subscription_tier", "free"),
+    return {"id": u["id"], "email": u["email"], "subscription_tier": effective_tier(u),
+            "raw_tier": u.get("subscription_tier", "free"),
             "account_balance": u.get("account_balance", 10000),
             "referral_code": u.get("referral_code"), "bonus_trades": u.get("bonus_trades", 0),
-            "referral_count": u.get("referral_count", 0)}
+            "referral_count": u.get("referral_count", 0), "reward_pro_until": u.get("reward_pro_until")}
 
 def gen_referral_code() -> str:
     return uuid.uuid4().hex[:6].upper()
@@ -133,8 +147,13 @@ async def register(inp: RegisterIn):
         if referrer:
             bonus = REFERRAL_BONUS
             referred_by = referrer["id"]
-            await db.users.update_one({"id": referrer["id"]},
-                {"$inc": {"bonus_trades": REFERRAL_BONUS, "referral_count": 1}})
+            new_count = referrer.get("referral_count", 0) + 1
+            upd = {"$inc": {"bonus_trades": REFERRAL_BONUS, "referral_count": 1}}
+            # Milestone: invite REFERRAL_MILESTONE friends -> free month of Pro
+            if new_count % REFERRAL_MILESTONE == 0:
+                until = datetime.now(timezone.utc) + timedelta(days=REWARD_PRO_DAYS)
+                upd["$set"] = {"reward_pro_until": until.isoformat()}
+            await db.users.update_one({"id": referrer["id"]}, upd)
     doc = {"id": uid, "email": inp.email.lower(), "password_hash": hash_pw(inp.password),
            "subscription_tier": "free", "account_balance": 10000,
            "referral_code": gen_referral_code(), "bonus_trades": bonus,
@@ -201,7 +220,7 @@ def clean_trade(t: dict) -> dict:
 @api.post("/trades/analyze-screenshot")
 async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
     # Free tier monthly limit
-    if user.get("subscription_tier", "free") == "free":
+    if effective_tier(user) == "free":
         month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         cnt = await db.trades.count_documents({"user_id": user["id"], "created_at": {"$gte": month_start.isoformat()}})
         limit = FREE_MONTHLY_LIMIT + user.get("bonus_trades", 0)
@@ -224,7 +243,13 @@ async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
               f"trade_time (string like '10:32 AM' or null), setup_grade (one of A,B,C,D,F), "
               f"strategy_followed (boolean), rule_violations (array of short strings), "
               f"detected_setup (short string e.g. 'Opening Range Breakout'), "
-              f"ai_summary (2-3 sentence coaching insight on this specific trade). "
+              f"ai_summary (2-3 sentence coaching insight on this specific trade), "
+              f"advanced (object with asset-type-specific analysis). "
+              f"For OPTIONS include in advanced: delta, gamma, theta, vega (numbers), implied_volatility (number, percent), "
+              f"overpaying_premium (boolean), suggested_strike (string), suggested_expiration (string), notes (string). "
+              f"For FUTURES include in advanced: mfe (max favorable excursion in $), mae (max adverse excursion in $), "
+              f"hold_time (string e.g. '12 min'), profit_left_on_table (string), entry_quality (string). "
+              f"For stocks/crypto/forex, advanced can be an empty object {{}}. Estimate reasonably from the screenshot. "
               f"If a value is unreadable, make a reasonable estimate.{rules_txt}")
     chat = llm(system, f"extract-{user['id']}-{uuid.uuid4()}")
     try:
@@ -254,6 +279,7 @@ async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
         "rule_violations": data.get("rule_violations", []) or [],
         "detected_setup": data.get("detected_setup", "Unknown"),
         "ai_summary": data.get("ai_summary", ""),
+        "advanced": data.get("advanced") or {},
         "strategy_id": inp.strategy_id,
         "strategy_name": strategy["name"] if strategy else None,
         "image_base64": inp.image_base64,
@@ -264,7 +290,7 @@ async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
 
 @api.post("/trades/analyze-chart")
 async def analyze_chart(inp: ScreenshotIn, user=Depends(get_current_user)):
-    if TIER_LEVEL.get(user.get("subscription_tier", "free"), 0) < 1:
+    if TIER_LEVEL.get(effective_tier(user), 0) < 1:
         raise HTTPException(status_code=402, detail="Chart analysis is a Pro feature. Upgrade to unlock.")
     system = ("You are an expert technical analyst. Analyze the chart screenshot and respond ONLY with a valid JSON object.")
     prompt = ("Analyze this trading chart. Return JSON with keys: "
@@ -380,7 +406,7 @@ async def daily_report(user=Depends(get_current_user)):
 # ---------- AI Coach chat ----------
 @api.post("/coach/chat")
 async def coach_chat(inp: ChatIn, user=Depends(get_current_user)):
-    if TIER_LEVEL.get(user.get("subscription_tier", "free"), 0) < 2:
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
         raise HTTPException(status_code=402, detail="AI Coach chat is a Premium feature. Upgrade to unlock.")
     trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", 1).to_list(1000)
     strategies = await db.strategies.find({"user_id": user["id"]}).to_list(50)

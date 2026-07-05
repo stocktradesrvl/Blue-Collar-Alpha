@@ -85,7 +85,7 @@ export default function Profile() {
             <Ionicons name="gift" size={20} color={colors.brand} />
             <Text style={styles.referTitle}>Refer &amp; Earn</Text>
           </View>
-          <Text style={styles.referSub}>Share your code — you both get 20 bonus trades.</Text>
+          <Text style={styles.referSub}>Share your code — you both get 20 bonus trades. Invite 3 friends → free month of Pro.</Text>
           <View style={styles.codeBox}>
             <Text testID="referral-code" style={styles.code}>{user?.referral_code || "—"}</Text>
             <Pressable testID="share-referral" style={styles.shareBtn} onPress={shareReferral}>
@@ -94,6 +94,12 @@ export default function Profile() {
             </Pressable>
           </View>
           <Text style={styles.referStat}>{user?.referral_count || 0} friends joined · {user?.bonus_trades || 0} bonus trades earned</Text>
+          {user?.reward_pro_until && new Date(user.reward_pro_until) > new Date() ? (
+            <View style={styles.rewardPill}>
+              <Ionicons name="trophy" size={14} color={colors.success} />
+              <Text style={styles.rewardTxt}>Free Pro active until {new Date(user.reward_pro_until).toLocaleDateString()}</Text>
+            </View>
+          ) : null}
         </View>
 
         <Text style={styles.section}>Subscription Plans</Text>
@@ -149,6 +155,8 @@ const styles = StyleSheet.create({
   shareBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.brand, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   shareTxt: { color: colors.onBrand, fontFamily: font.display, fontSize: fs.base },
   referStat: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
+  rewardPill: { flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start", backgroundColor: colors.success + "22", borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, marginTop: spacing.xs },
+  rewardTxt: { color: colors.success, fontFamily: font.text, fontSize: fs.sm },
   section: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.md },
   billingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
   billingTxt: { flex: 1, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
