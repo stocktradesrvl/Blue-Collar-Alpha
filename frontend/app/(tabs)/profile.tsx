@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -59,6 +59,16 @@ export default function Profile() {
     finally { setBusy(null); }
   };
 
+  const shareReferral = async () => {
+    const code = user?.referral_code;
+    if (!code) return;
+    try {
+      await Share.share({
+        message: `I'm using TradeMind AI — an AI trading coach that reviews your trades from screenshots. Sign up with my code ${code} and we both get 20 bonus trades. 📈`,
+      });
+    } catch {}
+  };
+
   return (
     <View style={styles.flex}>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingTop: insets.top + spacing.md, paddingBottom: 120 }}>
@@ -68,6 +78,22 @@ export default function Profile() {
             <Text style={styles.email} numberOfLines={1}>{user?.email}</Text>
             <View style={styles.tierBadge}><Text style={styles.tierBadgeTxt}>{(user?.subscription_tier || "free").toUpperCase()}</Text></View>
           </View>
+        </View>
+
+        <View style={styles.referCard}>
+          <View style={styles.referHead}>
+            <Ionicons name="gift" size={20} color={colors.brand} />
+            <Text style={styles.referTitle}>Refer &amp; Earn</Text>
+          </View>
+          <Text style={styles.referSub}>Share your code — you both get 20 bonus trades.</Text>
+          <View style={styles.codeBox}>
+            <Text testID="referral-code" style={styles.code}>{user?.referral_code || "—"}</Text>
+            <Pressable testID="share-referral" style={styles.shareBtn} onPress={shareReferral}>
+              <Ionicons name="share-social" size={16} color={colors.onBrand} />
+              <Text style={styles.shareTxt}>Share</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.referStat}>{user?.referral_count || 0} friends joined · {user?.bonus_trades || 0} bonus trades earned</Text>
         </View>
 
         <Text style={styles.section}>Subscription Plans</Text>
@@ -114,6 +140,15 @@ const styles = StyleSheet.create({
   email: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.xl },
   tierBadge: { alignSelf: "flex-start", backgroundColor: colors.brandTint, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2, marginTop: spacing.xs },
   tierBadgeTxt: { color: colors.brand, fontFamily: font.text, fontSize: fs.sm, letterSpacing: 1 },
+  referCard: { backgroundColor: colors.brandTint, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.brand, marginBottom: spacing.xl, gap: spacing.sm },
+  referHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  referTitle: { color: colors.brand, fontFamily: font.displayBold, fontSize: fs.xl },
+  referSub: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
+  codeBox: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, borderStyle: "dashed", paddingLeft: spacing.lg, paddingRight: spacing.sm, paddingVertical: spacing.sm, marginTop: spacing.xs },
+  code: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["2xl"], letterSpacing: 3 },
+  shareBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.brand, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  shareTxt: { color: colors.onBrand, fontFamily: font.display, fontSize: fs.base },
+  referStat: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
   section: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.md },
   billingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
   billingTxt: { flex: 1, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },

@@ -70,12 +70,20 @@ async def get_current_user(token: str = Depends(oauth2)):
 
 def public_user(u: dict) -> dict:
     return {"id": u["id"], "email": u["email"], "subscription_tier": u.get("subscription_tier", "free"),
-            "account_balance": u.get("account_balance", 10000)}
+            "account_balance": u.get("account_balance", 10000),
+            "referral_code": u.get("referral_code"), "bonus_trades": u.get("bonus_trades", 0),
+            "referral_count": u.get("referral_count", 0)}
+
+def gen_referral_code() -> str:
+    return uuid.uuid4().hex[:6].upper()
+
+REFERRAL_BONUS = 20
 
 # ---------- Models ----------
 class RegisterIn(BaseModel):
     email: EmailStr
     password: str
+    referral_code: Optional[str] = None
 
 class LoginIn(BaseModel):
     email: EmailStr
@@ -117,8 +125,20 @@ async def register(inp: RegisterIn):
     if await db.users.find_one({"email": inp.email.lower()}):
         raise HTTPException(status_code=400, detail="Email already registered")
     uid = str(uuid.uuid4())
+    bonus = 0
+    referred_by = None
+    if inp.referral_code:
+        code = inp.referral_code.strip().upper()
+        referrer = await db.users.find_one({"referral_code": code})
+        if referrer:
+            bonus = REFERRAL_BONUS
+            referred_by = referrer["id"]
+            await db.users.update_one({"id": referrer["id"]},
+                {"$inc": {"bonus_trades": REFERRAL_BONUS, "referral_count": 1}})
     doc = {"id": uid, "email": inp.email.lower(), "password_hash": hash_pw(inp.password),
            "subscription_tier": "free", "account_balance": 10000,
+           "referral_code": gen_referral_code(), "bonus_trades": bonus,
+           "referral_count": 0, "referred_by": referred_by,
            "created_at": datetime.now(timezone.utc).isoformat()}
     await db.users.insert_one(doc)
     return {"access_token": make_token(uid), "token_type": "bearer", "user": public_user(doc)}
@@ -132,6 +152,10 @@ async def login(inp: LoginIn):
 
 @api.get("/auth/me")
 async def me(user=Depends(get_current_user)):
+    if not user.get("referral_code"):
+        code = gen_referral_code()
+        await db.users.update_one({"id": user["id"]}, {"$set": {"referral_code": code}})
+        user["referral_code"] = code
     return public_user(user)
 
 @api.post("/auth/tier")
@@ -180,8 +204,9 @@ async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
     if user.get("subscription_tier", "free") == "free":
         month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         cnt = await db.trades.count_documents({"user_id": user["id"], "created_at": {"$gte": month_start.isoformat()}})
-        if cnt >= FREE_MONTHLY_LIMIT:
-            raise HTTPException(status_code=402, detail="Free tier limit reached (20 trades/month). Upgrade to Pro.")
+        limit = FREE_MONTHLY_LIMIT + user.get("bonus_trades", 0)
+        if cnt >= limit:
+            raise HTTPException(status_code=402, detail=f"Free tier limit reached ({limit} trades/month). Upgrade to Pro or invite friends for bonus trades.")
 
     strategy = None
     if inp.strategy_id:

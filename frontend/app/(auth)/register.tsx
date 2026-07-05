@@ -14,12 +14,13 @@ export default function Register() {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [referral, setReferral] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
     if (!email || password.length < 6) return toast("Password must be 6+ characters", "error");
     setBusy(true);
-    try { await register(email.trim(), password); router.replace("/(tabs)"); }
+    try { await register(email.trim(), password, referral.trim() || undefined); router.replace("/(tabs)"); }
     catch (e: any) { toast(e.message || "Registration failed", "error"); }
     finally { setBusy(false); }
   };
@@ -40,6 +41,9 @@ export default function Register() {
           <Text style={styles.label}>Password</Text>
           <TextInput testID="reg-password" style={styles.input} placeholder="Min 6 characters" placeholderTextColor={colors.onSurface3}
             value={password} onChangeText={setPassword} secureTextEntry />
+          <Text style={styles.label}>Referral code (optional)</Text>
+          <TextInput testID="reg-referral" style={styles.input} placeholder="Get 20 bonus trades" placeholderTextColor={colors.onSurface3}
+            value={referral} onChangeText={setReferral} autoCapitalize="characters" />
 
           <Pressable testID="reg-submit" style={styles.btn} onPress={submit} disabled={busy}>
             {busy ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.btnTxt}>Create Account</Text>}
