@@ -15,6 +15,10 @@ import { colors } from "@/src/theme";
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
 
+// Anchor the stack to index so any deep-linked/restored route always has a
+// home to return to (prevents getting stuck on a screen with no back target).
+export const unstable_settings = { initialRouteName: "index" };
+
 function useAppFonts() {
   const [done, setDone] = useState(false);
   useEffect(() => {
@@ -51,10 +55,7 @@ function RootNavigator() {
   }, [user, loading, segments, router]);
 
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
-      <Stack.Screen name="upload" options={{ presentation: "modal" }} />
-      <Stack.Screen name="analyze" options={{ presentation: "modal" }} />
-    </Stack>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }} />
   );
 }
 
