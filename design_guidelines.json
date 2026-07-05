@@ -1,0 +1,166 @@
+{
+  "app_name": "TradeMind AI",
+  "personality": "7 Dark-First Utility DARK",
+  "personality_one_liner": "A sharp, live operational surface built for fast scanning and zero-friction insights, powered by an AI coach that keeps the trader accountable.",
+  "color": {
+    "surface": "#121212",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "#1E1E1E",
+    "onSurfaceSecondary": "#A3A3A3",
+    "surfaceTertiary": "#2C2C2C",
+    "onSurfaceTertiary": "#808080",
+    "surfaceInverse": "#F5F5F5",
+    "onSurfaceInverse": "#121212",
+    "brand": "#FFB74D",
+    "brandPrimary": "#FF9800",
+    "onBrandPrimary": "#000000",
+    "brandSecondary": "#F57C00",
+    "onBrandSecondary": "#000000",
+    "brandTertiary": "rgba(255,183,77,0.12)",
+    "onBrandTertiary": "#FFB74D",
+    "success": "#00E676",
+    "onSuccess": "#000000",
+    "error": "#FF3D00",
+    "onError": "#FFFFFF",
+    "warning": "#FFC400",
+    "onWarning": "#000000",
+    "info": "#BDBDBD",
+    "onInfo": "#000000",
+    "border": "#333333",
+    "borderStrong": "#4D4D4D",
+    "divider": "#292929"
+  },
+  "typography": {
+    "displayFontFamily": "Rajdhani",
+    "textFontFamily": "DM Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 32
+    }
+  },
+  "spacing": {
+    "rule": "Handle spacing correctly, avoid extra spaces. Keep padding/margins subtle and functional. Tight spacing (sm/md) preferred for dense data blocks.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 0,
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [
+      "Use solid surfaceSecondary and surfaceTertiary to maintain high-contrast readability.",
+      "Use dividers over shadows to separate dense information."
+    ],
+    "dont's": [
+      "No blur or glassmorphism on cards, lists, or metrics.",
+      "No drop shadows; rely on color lightness differences."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "solid surfaceSecondary",
+      "android": "solid surfaceSecondary",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Dashboard",
+      "purpose": "Command center for the trader to view real-time equity curve, P&L stats, and access quick actions.",
+      "states": {
+        "loading": "Skeleton UI for chart and stat cards.",
+        "empty": "No trades logged yet. Display 'empty_dashboard' image with 'Upload your first trade' CTA.",
+        "error": "Failed to load dashboard data. Retry button."
+      },
+      "layout": "Top section: Large Account Balance & Daily P&L (color-coded). Middle section: Interactive Equity Curve Chart with 1D/1W/1M segmented controls above it. Bottom section: 2-column grid for Key Metrics (Win Rate, Profit Factor, Best Setup). Floating action button (FAB) in brand Primary for 'Upload Trade'."
+    },
+    {
+      "name": "AI Coach",
+      "purpose": "Conversational interface delivering daily session reports, strategy critiques, and emotional feedback.",
+      "states": {
+        "loading": "Shimmer effect on chat bubbles.",
+        "empty": "AI greeting asking 'How was today's session?'",
+        "error": "Could not connect to AI. Retry."
+      },
+      "layout": "Full-height scrollable chat layout. AI insight cards injected into the chat flow featuring horizontal stat bars (e.g., 'Discipline Score'). Bottom pinned input field. Use 'ai_coach_avatar' for AI's messages."
+    },
+    {
+      "name": "Trade Journal",
+      "purpose": "Filterable archive of all trades grouped by strategy, date, and performance.",
+      "states": {
+        "loading": "List skeleton rows.",
+        "empty": "No trades found matching filters.",
+        "error": "Error fetching journal. Retry."
+      },
+      "layout": "Sticky top bar with horizontal scrollable chips for filtering (Strategy, A-F Grade). Vertical list of trades. Each row: Ticker/Asset left-aligned, right-aligned P&L (success/error color), and an A-F grade badge. A subtle left-border color strip indicates win/loss."
+    },
+    {
+      "name": "Trade Detail",
+      "purpose": "Deep dive into a specific trade with chart screenshot analysis and rule checks.",
+      "states": {
+        "loading": "Skeleton over image hero and stats.",
+        "empty": "N/A - detailed view.",
+        "error": "Failed to load trade details."
+      },
+      "layout": "Hero image at top (uploaded chart screenshot) with vertical top-to-bottom gradient scrim (transparent to surface). Trade grade and P&L positioned at bottom of image. Below image: Rule Violations checklist (red icons for violated rules), and an AI Summary paragraph. "
+    },
+    {
+      "name": "Strategy Builder",
+      "purpose": "Form to define trading rules so the AI can check for violations post-trade.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "Validation errors on inputs."
+      },
+      "layout": "Single-column stacked form. Fields: Strategy Name, Risk %, and a dynamic list of 'Rules' (e.g., 'No trading on Fridays'). Bottom sticky CTA: 'Save Strategy' spanning full width."
+    }
+  ],
+  "images": {
+    "hero_chart_bg": {
+      "url": "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmslMjBmaW5hbmNpYWwlMjBjaGFydCUyMHN0b2NrJTIwbWFya2V0JTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODMyNjgyMDF8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Abstract dark financial chart"
+    },
+    "trade_screenshot_example": {
+      "url": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwxfHxmaW5hbmNpYWwlMjBjaGFydCUyMGNhbmRsZXN0aWNrJTIwYW5hbHlzaXMlMjBzY3JlZW5zaG90fGVufDB8fHx8MTc4MzI2ODIwMXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Candlestick chart analysis screenshot"
+    },
+    "empty_dashboard": {
+      "url": "https://images.unsplash.com/photo-1650661926447-9efb2610f64c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwxfHxlbXB0eSUyMG5vdGVib29rJTIwZGVzayUyMGRhcmt8ZW58MHx8fHwxNzgzMjY4MjAxfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Empty notebook in dark lighting"
+    },
+    "ai_coach_avatar": {
+      "url": "https://images.unsplash.com/photo-1677212004257-103cfa6b59d0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwxfHxhaSUyMHJvYm90JTIwYnJhaW4lMjBjaXJjdWl0JTIwZGFyayUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzgzMjY4MjAxfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "AI robotic brain circuit in dark mode"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the Dark-First Utility guidelines: Do not use glassmorphism, stick to solid surface dividers to segregate dense metrics.",
+    "Implement Bebas Neue or Rajdhani for large financial numbers, ensuring numbers look sharp and impactful.",
+    "Ensure 'success' (Green) and 'error' (Red) are the only colors used for P&L semantics. Do not use blue for generic accents; stick to the Amber 'brand' token for UI actions and premium AI coach hints.",
+    "For the Trade Detail screen, the uploaded trade screenshot MUST have a vertical gradient scrim overlay to guarantee text contrast at the bottom.",
+    "Make the 'Upload Trade' action highly accessible—either a persistent FAB or a dedicated center tab in the bottom bar.",
+    "AI coach chat should feel conversational but data-rich; inject small 'Insight Cards' (e.g. Rule Violations, Mindset Score) directly into the chat flow.",
+    "Always maintain a strict WCAG AA contrast ratio on the dark surfaces, using 'onSurface' and 'onSurfaceSecondary' intelligently."
+  ]
+}
