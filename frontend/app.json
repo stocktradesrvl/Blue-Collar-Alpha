@@ -10,7 +10,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.strategytracker.odqwcf"
+      "bundleIdentifier": "com.emergent.strategytracker.odqwcf",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Capture trade screenshots for AI analysis",
+        "NSPhotoLibraryUsageDescription": "Upload trade screenshots for AI analysis"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +22,8 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.strategytracker.odqwcf"
+      "package": "com.emergent.strategytracker.odqwcf",
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"]
     },
     "web": {
       "bundler": "metro",

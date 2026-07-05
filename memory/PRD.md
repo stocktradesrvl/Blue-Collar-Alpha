@@ -1,0 +1,53 @@
+# TradeMind AI — Product Requirements Document
+
+## Original Problem Statement
+AI trading journal that acts like a personal trading coach (not just an analytics dashboard). Imports trades, computes stats, and uses AI to answer "Why am I losing?", "What setups work?", "What mistakes do I repeat?". MVP: import trades, P&L, win rate, avg winner vs loser, equity curve, best/worst times, group by strategy, AI session summary. Advanced: chart screenshot analysis (patterns, S/R, trend, A–F grade), conversational AI coach on user's own data, strategy builder with rule-violation checks, daily report. Pricing Free/Pro/Premium.
+
+## User Choices (locked)
+- Import method: **Screenshot from phone** (camera/gallery → AI extracts trade)
+- AI features: **All** (session summary + daily report, coach chat, chart screenshot analysis)
+- LLM: **Claude Sonnet 4.6** via Emergent universal key
+- Strategy Builder: **Yes** (V1)
+- Auth: **Email/password JWT** with tiers free/pro/premium
+
+## Architecture
+- Frontend: Expo Router (React Native), dark "Utility" theme (Rajdhani/DM Sans), Ionicons, bottom tabs. Token in secure storage via `@/src/utils/storage`.
+- Backend: FastAPI + MongoDB (motor), JWT auth (bcrypt + python-jose), emergentintegrations LlmChat (anthropic claude-sonnet-4-6, vision + text, max_tokens capped at 1500 to stay under ingress timeout).
+- All routes under `/api`.
+
+## User Personas
+- Active retail trader (stocks/options/futures) wanting accountability and to stop repeating mistakes.
+- Mentor/coach reviewing a mentee's execution against a defined strategy.
+
+## Core Requirements (static)
+- Screenshot → trade extraction + A–F grade + rule violations + coach summary
+- Dashboard stats + equity curve
+- Journal (filter by grade) + trade detail
+- Strategy builder (rules) with AI enforcement
+- AI coach chat on own data; daily session report
+- Subscription tiers with feature gating
+
+## Implemented (2026-07-05)
+- Auth: register/login/me, JWT, tier switching (free/pro/premium)
+- Strategies: full CRUD
+- Trades: analyze-screenshot (vision extract+grade+violations+summary), list w/ grade & strategy filters, detail, delete; free-tier 20/month limit
+- analyze-chart (Pro-gated): trend/patterns/support/resistance/grade/analysis
+- Dashboard stats: total/daily P&L, win rate, profit factor, avg winner/loser, equity curve, best setup/time
+- Daily AI session report
+- AI coach chat (Premium-gated) using user's trades+strategies as context; chat history persisted
+- Frontend screens: Login/Register, Dashboard(+FAB, report, chart-analyze), Journal, Coach, Strategy Builder, Profile/Plans, Upload modal, Chart Analyze modal, Trade Detail, Report
+- Camera/photo permissions declared (app.json)
+- Backend tested: 19/24 initially; screenshot 502 (LLM latency) fixed via max_tokens cap → verified 200 in ~6s, dashboard/trades reflect data.
+
+## Backlog / Remaining
+- P1: Options Greeks/IV analysis; Futures MFE/MAE, hold-time, "profit left on table"
+- P1: Streaming coach responses (SSE) for token-by-token UX
+- P1: CSV / broker import as alternate to screenshots
+- P2: Team tier (shared journals for mentors)
+- P2: Real payments (Stripe) for tier upgrades (currently instant switch)
+- P2: Best/worst trading-time analytics need trade_time reliably parsed (bucket by hour)
+
+## Next Tasks
+1. Frontend UI validation via testing agent (flows: register→upload→detail→dashboard→strategy→tier upgrade→coach/chart).
+2. Add Stripe for real subscriptions.
+3. Options/futures-specific analysis fields.
