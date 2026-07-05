@@ -46,7 +46,7 @@ export default function Upload() {
   return (
     <View style={styles.flex}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable testID="close-upload" onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")}><Ionicons name="close" size={26} color={colors.onSurface} /></Pressable>
+        <Pressable testID="close-upload" onPress={() => router.replace("/")}><Ionicons name="close" size={26} color={colors.onSurface} /></Pressable>
         <Text style={styles.title}>Add Trade</Text>
         <View style={{ width: 26 }} />
       </View>
