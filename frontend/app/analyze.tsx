@@ -41,7 +41,7 @@ export default function Analyze() {
   return (
     <View style={styles.flex}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable testID="close-analyze" onPress={() => router.back()}><Ionicons name="close" size={26} color={colors.onSurface} /></Pressable>
+        <Pressable testID="close-analyze" onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")}><Ionicons name="close" size={26} color={colors.onSurface} /></Pressable>
         <Text style={styles.title}>Chart Analysis</Text>
         <View style={{ width: 26 }} />
       </View>

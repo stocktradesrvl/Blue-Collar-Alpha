@@ -22,7 +22,7 @@ export default function Report() {
   return (
     <View style={styles.flex}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable testID="back-report" onPress={() => router.back()}><Ionicons name="chevron-back" size={26} color={colors.onSurface} /></Pressable>
+        <Pressable testID="back-report" onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")}><Ionicons name="chevron-back" size={26} color={colors.onSurface} /></Pressable>
         <Text style={styles.title}>Session Report</Text>
         <Pressable testID="refresh-report" onPress={load}><Ionicons name="refresh" size={22} color={colors.brand} /></Pressable>
       </View>

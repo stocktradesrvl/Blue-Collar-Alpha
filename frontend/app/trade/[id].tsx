@@ -36,7 +36,7 @@ export default function TradeDetail() {
             <Image source={{ uri: `data:image/jpeg;base64,${trade.image_base64}` }} style={styles.heroImg} contentFit="cover" />
           ) : <View style={[styles.heroImg, { backgroundColor: colors.surface2 }]} />}
           <LinearGradient colors={["rgba(18,18,18,0.7)", "transparent", "rgba(18,18,18,0.95)"]} style={StyleSheet.absoluteFill} />
-          <Pressable testID="back-detail" onPress={() => router.back()} style={[styles.back, { top: insets.top + spacing.sm }]}>
+          <Pressable testID="back-detail" onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/journal")} style={[styles.back, { top: insets.top + spacing.sm }]}>
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
           <Pressable testID="delete-trade" onPress={del} style={[styles.delBtn, { top: insets.top + spacing.sm }]}>
