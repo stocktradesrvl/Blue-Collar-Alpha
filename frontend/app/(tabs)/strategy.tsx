@@ -151,6 +151,6 @@ const styles = StyleSheet.create({
   cardRisk: { color: colors.brand, fontFamily: font.text, fontSize: fs.sm, marginBottom: spacing.xs },
   ruleLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   ruleTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, flex: 1 },
-  fab: { position: "absolute", bottom: 100, right: spacing.lg, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.brand, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
-  fabTxt: { color: colors.onBrand, fontFamily: font.displayBold, fontSize: fs.lg },
+  fab: { position: "absolute", bottom: 100, right: spacing.lg, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
+  fabTxt: { color: colors.onAccent, fontFamily: font.displayBold, fontSize: fs.lg },
 });

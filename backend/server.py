@@ -499,6 +499,53 @@ async def dashboard(user=Depends(get_current_user)):
         "best_hour": best_hour, "worst_hour": worst_hour,
     }
 
+# ---------- Weekly recap ----------
+@api.get("/dashboard/weekly")
+async def weekly_recap(user=Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    week_ago = (now - timedelta(days=7)).isoformat()
+    two_weeks = (now - timedelta(days=14)).isoformat()
+    trades = await db.trades.find({"user_id": user["id"]}).to_list(2000)
+    taken = [t for t in trades if t.get("taken", True) is not False]
+
+    def bucket(start, end):
+        return [t for t in taken if start <= t.get("created_at", "") < end]
+    this_week = bucket(week_ago, now.isoformat() + "z")
+    last_week = bucket(two_weeks, week_ago)
+
+    def summarize(ts):
+        n = len(ts)
+        pnl = round(sum(t.get("pnl", 0) for t in ts), 2)
+        wins = [t for t in ts if t.get("pnl", 0) > 0]
+        wr = round(len(wins) / n * 100, 1) if n else 0
+        return {"trades": n, "pnl": pnl, "win_rate": wr}
+
+    tw, lw = summarize(this_week), summarize(last_week)
+    if tw["trades"] == 0:
+        return {"has_data": False, "this_week": tw, "last_week": lw, "pnl_change": 0, "wr_change": 0,
+                "takeaway": "No trades logged this week yet. Upload a screenshot to start your weekly review."}
+
+    pnl_change = round(tw["pnl"] - lw["pnl"], 2)
+    wr_change = round(tw["win_rate"] - lw["win_rate"], 1)
+    setup_pnl = defaultdict(float)
+    for t in this_week:
+        setup_pnl[t.get("detected_setup") or "Unknown"] += t.get("pnl", 0)
+    best = max(setup_pnl, key=setup_pnl.get) if setup_pnl else None
+    worst = min(setup_pnl, key=setup_pnl.get) if setup_pnl else None
+    violations = sum(1 for t in this_week if not t.get("strategy_followed", True))
+
+    parts = [f"You're up ${tw['pnl']:.0f} this week" if tw["pnl"] >= 0 else f"You're down ${abs(tw['pnl']):.0f} this week"]
+    if lw["trades"] > 0:
+        parts.append(f"win rate {'improved' if wr_change >= 0 else 'dropped'} {abs(wr_change):.0f}pts vs last week")
+    if best and setup_pnl[best] > 0:
+        parts.append(f"{best} was your top setup")
+    if violations > 0:
+        parts.append(f"but {violations} trade{'s' if violations != 1 else ''} broke your rules")
+    takeaway = ". ".join(parts[:3]) + "."
+
+    return {"has_data": True, "this_week": tw, "last_week": lw, "pnl_change": pnl_change,
+            "wr_change": wr_change, "best_setup": best, "worst_setup": worst, "takeaway": takeaway}
+
 # ---------- Daily report ----------
 @api.get("/reports/daily")
 async def daily_report(user=Depends(get_current_user)):

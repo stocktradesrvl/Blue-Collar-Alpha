@@ -15,11 +15,13 @@ export default function Dashboard() {
   const { width } = useWindowDimensions();
   const [stats, setStats] = useState<any>(null);
   const [trial, setTrial] = useState<{ days: number } | null>(null);
+  const [weekly, setWeekly] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<keyof typeof RANGES>("ALL");
 
   const load = useCallback(async () => {
     try { setStats(await api.get("/dashboard/stats")); } catch {}
+    try { setWeekly(await api.get("/dashboard/weekly")); } catch {}
     try {
       const b = await api.get("/payments/billing");
       const end = b?.subscription?.trial_end;
@@ -89,6 +91,36 @@ export default function Dashboard() {
               </View>
             </View>
 
+            {weekly?.has_data && (
+              <View style={styles.weeklyCard}>
+                <View style={styles.weeklyHead}>
+                  <Text style={styles.weeklyTitle}>This Week</Text>
+                  <View style={[styles.wrTrend, { backgroundColor: (weekly.wr_change >= 0 ? colors.success : colors.error) + "22" }]}>
+                    <Ionicons name={weekly.wr_change >= 0 ? "arrow-up" : "arrow-down"} size={12} color={weekly.wr_change >= 0 ? colors.success : colors.error} />
+                    <Text style={[styles.wrTrendTxt, { color: weekly.wr_change >= 0 ? colors.success : colors.error }]}>{Math.abs(weekly.wr_change)}pts</Text>
+                  </View>
+                </View>
+                <View style={styles.weeklyRow}>
+                  <View>
+                    <Text style={styles.weeklyLabel}>P&L</Text>
+                    <Text style={[styles.weeklyVal, { color: pnlColor(weekly.this_week.pnl) }]}>{money(weekly.this_week.pnl)}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.weeklyLabel}>Win Rate</Text>
+                    <Text style={styles.weeklyVal}>{weekly.this_week.win_rate}%</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.weeklyLabel}>Trades</Text>
+                    <Text style={styles.weeklyVal}>{weekly.this_week.trades}</Text>
+                  </View>
+                </View>
+                <View style={styles.takeawayRow}>
+                  <Ionicons name="sparkles" size={14} color={colors.brand} />
+                  <Text style={styles.takeawayTxt}>{weekly.takeaway}</Text>
+                </View>
+              </View>
+            )}
+
             <View style={styles.grid}>
               <StatCard testID="stat-winrate" label="Win Rate" value={`${stats.win_rate}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
               <StatCard testID="stat-pf" label="Profit Factor" value={`${stats.profit_factor}`} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
@@ -155,6 +187,16 @@ const styles = StyleSheet.create({
   rangeTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
   rangeTxtActive: { color: colors.onBrand, fontFamily: font.text },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.md },
+  weeklyCard: { backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md, gap: spacing.md },
+  weeklyHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  weeklyTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
+  wrTrend: { flexDirection: "row", alignItems: "center", gap: 2, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  wrTrendTxt: { fontFamily: font.text, fontSize: fs.sm },
+  weeklyRow: { flexDirection: "row", justifyContent: "space-between" },
+  weeklyLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
+  weeklyVal: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
+  takeawayRow: { flexDirection: "row", gap: spacing.sm, backgroundColor: colors.brandTint, borderRadius: radius.md, padding: spacing.md },
+  takeawayTxt: { flex: 1, color: colors.onSurface, fontFamily: font.text, fontSize: fs.base, lineHeight: 20 },
   half: { width: "47.7%", flexGrow: 1 },
   infoRow: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.md },
   infoCard: { flex: 1, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
@@ -167,6 +209,6 @@ const styles = StyleSheet.create({
   emptyBox: { alignItems: "center", padding: spacing.xxl, backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.xl, gap: spacing.sm },
   emptyTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl, marginTop: spacing.sm },
   emptySub: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, textAlign: "center" },
-  fab: { position: "absolute", bottom: 100, right: spacing.lg, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.brand, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
-  fabTxt: { color: colors.onBrand, fontFamily: font.displayBold, fontSize: fs.lg },
+  fab: { position: "absolute", bottom: 100, right: spacing.lg, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
+  fabTxt: { color: colors.onAccent, fontFamily: font.displayBold, fontSize: fs.lg },
 });
