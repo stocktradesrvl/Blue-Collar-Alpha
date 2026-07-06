@@ -8,6 +8,16 @@ import { useAuth } from "@/src/context/AuthContext";
 import { colors, spacing, radius, font, fs } from "@/src/theme";
 
 const SUGGESTIONS = ["Why am I losing money?", "What's my best setup?", "Should I stop after two losses?", "What mistakes cost me the most?"];
+const FOLLOWUPS = [
+  "Show my worst day",
+  "Compare Monday vs Friday",
+  "Which setup should I avoid?",
+  "Am I overtrading?",
+  "How's my risk management?",
+  "Which strategy is most profitable?",
+  "When should I stop for the day?",
+  "What's my average winner vs loser?",
+];
 
 export default function Coach() {
   const insets = useSafeAreaInsets();
@@ -85,6 +95,18 @@ export default function Coach() {
           </View>
         ))}
         {busy && <View style={[styles.bubble, styles.ai]}><ActivityIndicator color={colors.brand} /></View>}
+        {!busy && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
+          <View style={styles.followWrap}>
+            <Text style={styles.followLabel}>Follow up</Text>
+            <View style={styles.followRow}>
+              {FOLLOWUPS.filter((f) => !messages.some((m) => m.content === f)).slice(0, 3).map((f) => (
+                <Pressable key={f} testID={`followup-${f.slice(0, 6)}`} style={styles.followChip} onPress={() => send(f)}>
+                  <Text style={styles.followTxt}>{f}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
       </ScrollView>
       <View style={[styles.inputBar, { paddingBottom: insets.bottom || spacing.md }]}>
         <TextInput testID="coach-input" style={styles.input} placeholder="Ask your coach..." placeholderTextColor={colors.onSurface3}
@@ -111,6 +133,11 @@ const styles = StyleSheet.create({
   user: { backgroundColor: colors.brand, alignSelf: "flex-end", borderBottomRightRadius: radius.sm },
   ai: { backgroundColor: colors.surface2, alignSelf: "flex-start", borderWidth: 1, borderColor: colors.border, borderBottomLeftRadius: radius.sm },
   msgTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, lineHeight: 22 },
+  followWrap: { marginTop: spacing.sm, marginBottom: spacing.md },
+  followLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: spacing.sm },
+  followRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  followChip: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.brand, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  followTxt: { color: colors.brand, fontFamily: font.text, fontSize: fs.base },
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.surface2 },
   input: { flex: 1, maxHeight: 120, backgroundColor: colors.surface3, borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg },
   sendBtn: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
