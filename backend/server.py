@@ -30,8 +30,8 @@ stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 BACKEND_URL = os.environ.get('EXPO_BACKEND_URL') or ''
 # Fixed server-side pricing (never trust client amounts). Amounts in cents.
 STRIPE_PACKAGES = {
-    "pro": {"name": "TradeMind Pro", "amount": 2900, "trial_days": 0},
-    "premium": {"name": "TradeMind Premium", "amount": 7900, "trial_days": 7},
+    "pro": {"name": "TradeMind Pro", "amount": 1999, "trial_days": 0},
+    "premium": {"name": "TradeMind Premium", "amount": 4999, "trial_days": 7},
 }
 ALGO = "HS256"
 TIER_LEVEL = {"free": 0, "pro": 1, "premium": 2}
@@ -114,9 +114,25 @@ class TierIn(BaseModel):
 class ScreenshotIn(BaseModel):
     image_base64: str
     strategy_id: Optional[str] = None
+    strategy_ids: Optional[List[str]] = None
+    taken: bool = True
+
+class PreTradeIn(BaseModel):
+    image_base64: str
+    strategy_ids: Optional[List[str]] = None
 
 class ChatIn(BaseModel):
     message: str
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+class BalanceIn(BaseModel):
+    balance: float
+
+class TakenIn(BaseModel):
+    taken: bool
 
 # ---------- LLM helpers ----------
 def llm(system: str, session_id: str, max_tokens: int = 1500):
@@ -185,6 +201,25 @@ async def set_tier(inp: TierIn, user=Depends(get_current_user)):
     u = await db.users.find_one({"id": user["id"]})
     return public_user(u)
 
+@api.post("/auth/change-password")
+async def change_password(inp: ChangePasswordIn, user=Depends(get_current_user)):
+    if not verify_pw(inp.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(inp.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    if inp.current_password == inp.new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from current")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_pw(inp.new_password)}})
+    return {"ok": True}
+
+@api.post("/user/balance")
+async def set_balance(inp: BalanceIn, user=Depends(get_current_user)):
+    if inp.balance < 0:
+        raise HTTPException(status_code=400, detail="Balance cannot be negative")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"account_balance": inp.balance}})
+    u = await db.users.find_one({"id": user["id"]})
+    return public_user(u)
+
 # ---------- Strategy routes ----------
 @api.get("/strategies")
 async def list_strategies(user=Depends(get_current_user)):
@@ -227,12 +262,17 @@ async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
         if cnt >= limit:
             raise HTTPException(status_code=402, detail=f"Free tier limit reached ({limit} trades/month). Upgrade to Pro or invite friends for bonus trades.")
 
-    strategy = None
-    if inp.strategy_id:
-        strategy = await db.strategies.find_one({"id": inp.strategy_id, "user_id": user["id"]})
+    # Resolve selected strategies (supports multiple)
+    sel_ids = inp.strategy_ids or ([inp.strategy_id] if inp.strategy_id else [])
+    strategies = []
+    if sel_ids:
+        strategies = await db.strategies.find({"id": {"$in": sel_ids}, "user_id": user["id"]}).to_list(50)
     rules_txt = ""
-    if strategy:
-        rules_txt = f"\nThe trader's strategy '{strategy['name']}' has these rules:\n" + "\n".join(f"- {r}" for r in strategy.get("rules", []))
+    if strategies:
+        parts = []
+        for s in strategies:
+            parts.append(f"Strategy '{s['name']}' rules:\n" + "\n".join(f"- {r}" for r in s.get("rules", [])))
+        rules_txt = "\nThe trader follows these strategies. Check the trade against ALL of them:\n" + "\n".join(parts)
 
     system = ("You are an expert trading analyst. You analyze a screenshot of a broker order/position or a trading chart "
               "and extract the trade details, then grade the execution. "
@@ -280,13 +320,24 @@ async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
         "detected_setup": data.get("detected_setup", "Unknown"),
         "ai_summary": data.get("ai_summary", ""),
         "advanced": data.get("advanced") or {},
-        "strategy_id": inp.strategy_id,
-        "strategy_name": strategy["name"] if strategy else None,
+        "taken": inp.taken,
+        "strategy_ids": [s["id"] for s in strategies],
+        "strategy_names": [s["name"] for s in strategies],
+        "strategy_id": strategies[0]["id"] if strategies else None,
+        "strategy_name": strategies[0]["name"] if strategies else None,
         "image_base64": inp.image_base64,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.trades.insert_one(doc)
     return clean_trade(doc)
+
+@api.put("/trades/{tid}/taken")
+async def set_trade_taken(tid: str, inp: TakenIn, user=Depends(get_current_user)):
+    res = await db.trades.update_one({"id": tid, "user_id": user["id"]}, {"$set": {"taken": inp.taken}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    t = await db.trades.find_one({"id": tid})
+    return clean_trade(t)
 
 @api.post("/trades/analyze-chart")
 async def analyze_chart(inp: ScreenshotIn, user=Depends(get_current_user)):
@@ -306,13 +357,56 @@ async def analyze_chart(inp: ScreenshotIn, user=Depends(get_current_user)):
     data = extract_json(resp) or {"analysis": resp, "trend": "unknown", "patterns": [], "support": [], "resistance": [], "setup_grade": "C"}
     return data
 
+DISCLAIMER = ("This is an educational analysis of how a potential setup aligns with your own rules. "
+              "It is NOT financial advice, a recommendation, or a prediction. Trading involves substantial "
+              "risk of loss. You are solely responsible for your decisions.")
+
+@api.post("/analyze/pretrade")
+async def analyze_pretrade(inp: PreTradeIn, user=Depends(get_current_user)):
+    if TIER_LEVEL.get(effective_tier(user), 0) < 1:
+        raise HTTPException(status_code=402, detail="The Pre-Trade Grader is a Pro feature. Upgrade to unlock.")
+    # Pull the user's strategies (selected, or all if none chosen) so the AI can pick the best fit.
+    if inp.strategy_ids:
+        strategies = await db.strategies.find({"id": {"$in": inp.strategy_ids}, "user_id": user["id"]}).to_list(50)
+    else:
+        strategies = await db.strategies.find({"user_id": user["id"]}).to_list(50)
+    strat_txt = "\n".join(f"Strategy '{s['name']}' rules:\n" + "\n".join(f"- {r}" for r in s.get("rules", [])) for s in strategies) or "No strategies defined."
+    system = ("You are an expert trading coach evaluating a POTENTIAL (not-yet-taken) trade setup from a chart against the "
+              "trader's own strategy rules. You are strictly educational and must NOT give financial advice or predictions. "
+              "Respond ONLY with a single valid JSON object.")
+    prompt = (f"Here are the trader's strategies:\n{strat_txt}\n\n"
+              f"Analyze the attached chart as a POSSIBLE trade. Return JSON with keys: "
+              f"grade (A-F, how well this potential setup fits the trader's rules), "
+              f"best_matching_strategy (the name of the strategy it fits best, or 'None' if it fits none well), "
+              f"rules_met (array of short strings), rules_violated (array of short strings), "
+              f"trend (uptrend/downtrend/sideways), patterns (array), "
+              f"reasoning (3-4 sentences on the fit, framed as education not advice), "
+              f"considerations (array of 2-3 risk/entry considerations to think about). "
+              f"Do NOT tell the user to buy or sell.")
+    chat = llm(system, f"pretrade-{user['id']}-{uuid.uuid4()}")
+    try:
+        resp = await chat.send_message(UserMessage(text=prompt, file_contents=[ImageContent(image_base64=inp.image_base64)]))
+    except Exception as e:
+        logger.error(f"pretrade err {e}")
+        raise HTTPException(status_code=502, detail="AI analysis failed. Please try again.")
+    data = extract_json(resp) or {"grade": "C", "reasoning": resp, "best_matching_strategy": "None",
+                                  "rules_met": [], "rules_violated": [], "patterns": [], "trend": "unknown", "considerations": []}
+    data["disclaimer"] = DISCLAIMER
+    return data
+
 @api.get("/trades")
-async def list_trades(strategy_id: Optional[str] = None, grade: Optional[str] = None, user=Depends(get_current_user)):
+async def list_trades(strategy_id: Optional[str] = None, grade: Optional[str] = None,
+                     taken: Optional[bool] = None, user=Depends(get_current_user)):
     q = {"user_id": user["id"]}
     if strategy_id:
-        q["strategy_id"] = strategy_id
+        q["strategy_ids"] = strategy_id
     if grade:
         q["setup_grade"] = grade
+    if taken is not None:
+        if taken:
+            q["taken"] = {"$ne": False}
+        else:
+            q["taken"] = False
     items = await db.trades.find(q).sort("created_at", -1).to_list(500)
     return [{k: v for k, v in t.items() if k not in ("_id", "image_base64")} for t in items]
 
@@ -331,7 +425,9 @@ async def delete_trade(tid: str, user=Depends(get_current_user)):
 # ---------- Dashboard stats ----------
 @api.get("/dashboard/stats")
 async def dashboard(user=Depends(get_current_user)):
-    trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", 1).to_list(1000)
+    all_trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", 1).to_list(1000)
+    # Only executed trades count toward performance stats.
+    trades = [t for t in all_trades if t.get("taken", True) is not False]
     total = len(trades)
     if total == 0:
         return {"total_trades": 0, "total_pnl": 0, "daily_pnl": 0, "win_rate": 0,

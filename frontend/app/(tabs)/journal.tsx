@@ -15,14 +15,17 @@ export default function Journal() {
   const [trades, setTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
+  const [tab, setTab] = useState<"executed" | "missed">("executed");
 
   const load = useCallback(async () => {
     try {
-      const q = filter === "All" ? "" : `?grade=${filter}`;
-      setTrades(await api.get(`/trades${q}`));
+      const params = new URLSearchParams();
+      if (filter !== "All") params.set("grade", filter);
+      params.set("taken", tab === "executed" ? "true" : "false");
+      setTrades(await api.get(`/trades?${params.toString()}`));
     } catch {}
     setLoading(false);
-  }, [filter]);
+  }, [filter, tab]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -49,6 +52,14 @@ export default function Journal() {
     <View style={styles.flex}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Text style={styles.title}>Trade Journal</Text>
+        <View style={styles.segment}>
+          <Pressable testID="tab-executed" onPress={() => setTab("executed")} style={[styles.segBtn, tab === "executed" && styles.segActive]}>
+            <Text style={[styles.segTxt, tab === "executed" && styles.segTxtActive]}>Executed</Text>
+          </Pressable>
+          <Pressable testID="tab-missed" onPress={() => setTab("missed")} style={[styles.segBtn, tab === "missed" && styles.segActive]}>
+            <Text style={[styles.segTxt, tab === "missed" && styles.segTxtActive]}>Missed / Ideas</Text>
+          </Pressable>
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           {GRADES.map((g) => (
             <Pressable key={g} testID={`filter-${g}`} onPress={() => setFilter(g)}
@@ -83,6 +94,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.surface },
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.divider },
   title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["3xl"], marginBottom: spacing.md },
+  segment: { flexDirection: "row", backgroundColor: colors.surface2, borderRadius: radius.md, padding: 3, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
+  segBtn: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.sm, alignItems: "center" },
+  segActive: { backgroundColor: colors.brand },
+  segTxt: { color: colors.onSurface2, fontFamily: font.display, fontSize: fs.base },
+  segTxtActive: { color: colors.onBrand },
   chips: { gap: spacing.sm, paddingRight: spacing.lg },
   chip: { height: 36, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, justifyContent: "center", flexShrink: 0 },
   chipActive: { backgroundColor: colors.brand, borderColor: colors.brand },

@@ -68,6 +68,20 @@ export default function TradeDetail() {
             <Text style={styles.setupName}>{trade.detected_setup || "Unknown"}</Text>
           </View>
 
+          <Pressable testID="toggle-taken" style={styles.takenCard} onPress={toggleTaken}>
+            <Ionicons name={trade.taken !== false ? "checkmark-circle" : "eye-outline"} size={20} color={trade.taken !== false ? colors.success : colors.warning} />
+            <Text style={styles.takenCardTxt}>{trade.taken !== false ? "Executed trade" : "Missed / idea (not counted in stats)"}</Text>
+            <Text style={styles.takenToggle}>Change</Text>
+          </Pressable>
+
+          {(trade.strategy_names && trade.strategy_names.length > 0) ? (
+            <View style={styles.stratWrap}>
+              {trade.strategy_names.map((n: string, i: number) => (
+                <View key={i} style={styles.stratPill}><Text style={styles.stratPillTxt}>{n}</Text></View>
+              ))}
+            </View>
+          ) : null}
+
           <Text style={styles.section}>Strategy Check</Text>
           <View style={[styles.checkCard, { borderColor: trade.strategy_followed ? colors.success : colors.error }]}>
             <Ionicons name={trade.strategy_followed ? "checkmark-circle" : "alert-circle"} size={22} color={trade.strategy_followed ? colors.success : colors.error} />
@@ -146,6 +160,12 @@ const styles = StyleSheet.create({
   setupCard: { backgroundColor: colors.brandTint, borderRadius: radius.md, padding: spacing.lg },
   setupLabel: { color: colors.brand, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.8 },
   setupName: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.xl },
+  takenCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
+  takenCardTxt: { flex: 1, color: colors.onSurface, fontFamily: font.text, fontSize: fs.base },
+  takenToggle: { color: colors.brand, fontFamily: font.display, fontSize: fs.base },
+  stratWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  stratPill: { backgroundColor: colors.brandTint, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  stratPillTxt: { color: colors.brand, fontFamily: font.text, fontSize: fs.sm },
   section: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1, marginTop: spacing.sm },
   checkCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1 },
   checkTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, flex: 1 },

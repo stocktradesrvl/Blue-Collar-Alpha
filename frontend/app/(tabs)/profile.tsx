@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,16 +12,34 @@ import { colors, spacing, radius, font, fs } from "@/src/theme";
 
 const PLANS = [
   { tier: "free", name: "Free", price: "$0", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
-  { tier: "pro", name: "Pro", price: "$29/mo", features: ["Unlimited trades", "Chart screenshot analysis", "Setup grading A–F", "Strategy rule checks"] },
-  { tier: "premium", name: "Premium", price: "$79/mo", badge: "7-day free trial", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
+  { tier: "pro", name: "Pro", price: "$19.99/mo", features: ["Unlimited trades", "Chart screenshot analysis", "Setup grading A–F", "Strategy rule checks", "Pre-Trade Grader"] },
+  { tier: "premium", name: "Premium", price: "$49.99/mo", badge: "7-day free trial", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
 ];
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, logout, setTier, refresh } = useAuth();
+  const { user, logout, setTier, setBalance, changePassword, refresh } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  const [balInput, setBalInput] = useState(String(user?.account_balance ?? 10000));
+  const [curPw, setCurPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+
+  const saveBalance = async () => {
+    const v = parseFloat(balInput);
+    if (isNaN(v) || v < 0) return toast("Enter a valid balance", "error");
+    try { await setBalance(v); toast("Starting balance updated", "success"); }
+    catch (e: any) { toast(e.message, "error"); }
+  };
+
+  const savePassword = async () => {
+    if (newPw.length < 6) return toast("New password must be 6+ characters", "error");
+    setBusy("pw");
+    try { await changePassword(curPw, newPw); setCurPw(""); setNewPw(""); toast("Password updated", "success"); }
+    catch (e: any) { toast(e.message || "Could not change password", "error"); }
+    finally { setBusy(null); }
+  };
 
   const change = async (tier: string) => {
     if (tier === "free") {
@@ -70,14 +88,33 @@ export default function Profile() {
   };
 
   return (
-    <View style={styles.flex}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingTop: insets.top + spacing.md, paddingBottom: 120 }}>
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingTop: insets.top + spacing.md, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
         <View style={styles.userCard}>
           <View style={styles.avatar}><Ionicons name="person" size={28} color={colors.brand} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.email} numberOfLines={1}>{user?.email}</Text>
             <View style={styles.tierBadge}><Text style={styles.tierBadgeTxt}>{(user?.subscription_tier || "free").toUpperCase()}</Text></View>
           </View>
+        </View>
+
+        <Text style={styles.section}>Account</Text>
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingLabel}>Starting account balance</Text>
+          <View style={styles.inlineRow}>
+            <TextInput testID="balance-input" style={styles.settingInput} value={balInput} onChangeText={setBalInput}
+              keyboardType="numeric" placeholder="10000" placeholderTextColor={colors.onSurface3} />
+            <Pressable testID="save-balance" style={styles.saveMini} onPress={saveBalance}><Text style={styles.saveMiniTxt}>Save</Text></Pressable>
+          </View>
+          <View style={styles.divider} />
+          <Text style={styles.settingLabel}>Change password</Text>
+          <TextInput testID="current-password" style={styles.settingInputFull} value={curPw} onChangeText={setCurPw}
+            secureTextEntry placeholder="Current password" placeholderTextColor={colors.onSurface3} />
+          <TextInput testID="new-password" style={styles.settingInputFull} value={newPw} onChangeText={setNewPw}
+            secureTextEntry placeholder="New password (6+ chars)" placeholderTextColor={colors.onSurface3} />
+          <Pressable testID="save-password" style={styles.saveMini} onPress={savePassword} disabled={busy === "pw"}>
+            {busy === "pw" ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.saveMiniTxt}>Update Password</Text>}
+          </Pressable>
         </View>
 
         <View style={styles.referCard}>
@@ -135,7 +172,7 @@ export default function Profile() {
           <Text style={styles.logoutTxt}>Log Out</Text>
         </Pressable>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -158,6 +195,14 @@ const styles = StyleSheet.create({
   rewardPill: { flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start", backgroundColor: colors.success + "22", borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, marginTop: spacing.xs },
   rewardTxt: { color: colors.success, fontFamily: font.text, fontSize: fs.sm },
   section: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.md },
+  settingsCard: { backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.xl, gap: spacing.sm },
+  settingLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
+  inlineRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  settingInput: { flex: 1, backgroundColor: colors.surface3, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
+  settingInputFull: { backgroundColor: colors.surface3, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg },
+  saveMini: { backgroundColor: colors.brand, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, alignItems: "center", justifyContent: "center" },
+  saveMiniTxt: { color: colors.onBrand, fontFamily: font.display, fontSize: fs.base },
+  divider: { height: 1, backgroundColor: colors.divider, marginVertical: spacing.sm },
   billingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
   billingTxt: { flex: 1, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   plan: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },

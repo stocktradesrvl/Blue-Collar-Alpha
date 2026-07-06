@@ -127,19 +127,19 @@ class TestCreateCheckoutSession:
         session = stripe.checkout.Session.retrieve(session_id, expand=["line_items"])
         line_items = session.line_items["data"]
         assert len(line_items) == 1
-        assert line_items[0]["amount_total"] == 2900, f"expected pro=2900 cents, got {line_items[0]['amount_total']}"
+        assert line_items[0]["amount_total"] == 1999, f"expected pro=1999 cents, got {line_items[0]['amount_total']}"
 
-    def test_premium_amount_is_7900_with_trial(self, api, base_url, auth_headers):
-        """Premium: unit_amount=7900 cents, with 7-day trial. amount_total during trial is 0."""
+    def test_premium_amount_is_4999_with_trial(self, api, base_url, auth_headers):
+        """Premium: unit_amount=4999 cents, with 7-day trial. amount_total during trial is 0."""
         sid = TestCreateCheckoutSession.premium_session_id
         assert sid, "premium session not created"
         import stripe
         stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
         session = stripe.checkout.Session.retrieve(sid, expand=["line_items.data.price"])
         li = session.line_items["data"][0]
-        # During trial, amount_total is 0 but the underlying price unit_amount must be 7900
+        # During trial, amount_total is 0 but the underlying price unit_amount must be 4999
         price = li.get("price") or {}
-        assert price.get("unit_amount") == 7900, f"expected unit_amount=7900, got {price.get('unit_amount')}"
+        assert price.get("unit_amount") == 4999, f"expected unit_amount=4999, got {price.get('unit_amount')}"
         # Verify trial is configured (7 days)
         assert session.get("subscription") is None  # not yet created (unpaid)
         # metadata carries tier

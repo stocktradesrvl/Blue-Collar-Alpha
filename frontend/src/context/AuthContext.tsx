@@ -9,6 +9,8 @@ type AuthCtx = {
   register: (email: string, password: string, referral_code?: string) => Promise<void>;
   logout: () => Promise<void>;
   setTier: (tier: string) => Promise<void>;
+  setBalance: (balance: number) => Promise<void>;
+  changePassword: (current: string, next: string) => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -41,9 +43,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
   const logout = async () => { await api.clearToken(); setUser(null); };
   const setTier = async (tier: string) => { setUser(await api.post("/auth/tier", { tier })); };
+  const setBalance = async (balance: number) => { setUser(await api.post("/user/balance", { balance })); };
+  const changePassword = async (current: string, next: string) => {
+    await api.post("/auth/change-password", { current_password: current, new_password: next });
+  };
   const refresh = async () => { try { setUser(await api.get("/auth/me")); } catch {} };
 
-  return <Ctx.Provider value={{ user, loading, login, register, logout, setTier, refresh }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, loading, login, register, logout, setTier, setBalance, changePassword, refresh }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

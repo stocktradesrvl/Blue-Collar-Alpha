@@ -117,6 +117,11 @@ export default function Dashboard() {
               <Text style={styles.chartBtnTxt}>Analyze a Chart Screenshot</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
             </Pressable>
+            <Pressable testID="pretrade-btn" style={styles.chartBtn} onPress={() => router.push("/pretrade")}>
+              <Ionicons name="ribbon" size={20} color={colors.onSurface} />
+              <Text style={styles.chartBtnTxt}>Grade a Potential Trade</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+            </Pressable>
           </>
         )}
       </ScrollView>

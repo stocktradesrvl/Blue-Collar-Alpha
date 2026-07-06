@@ -5,6 +5,7 @@ import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { useToast } from "@/src/context/ToastContext";
+import { STRATEGY_PRESETS } from "@/src/strategyPresets";
 import { colors, spacing, radius, font, fs } from "@/src/theme";
 
 export default function Strategy() {
@@ -25,6 +26,9 @@ export default function Strategy() {
 
   const openNew = () => { setEditId(null); setName(""); setRisk("1"); setRules([""]); setEditing(true); };
   const openEdit = (s: any) => { setEditId(s.id); setName(s.name); setRisk(String(s.risk_pct)); setRules(s.rules.length ? s.rules : [""]); setEditing(true); };
+  const openPreset = (p: typeof STRATEGY_PRESETS[number]) => {
+    setEditId(null); setName(p.name); setRisk(String(p.risk_pct)); setRules([...p.rules]); setEditing(true);
+  };
 
   const save = async () => {
     if (!name.trim()) return toast("Enter a strategy name", "error");
@@ -86,10 +90,19 @@ export default function Strategy() {
         <Text style={styles.subtitle}>Define rules for the AI to enforce</Text>
       </View>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
+        <Text style={styles.presetLabel}>Quick templates — tap to customize</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
+          {STRATEGY_PRESETS.map((p) => (
+            <Pressable key={p.name} testID={`preset-${p.name}`} style={styles.presetChip} onPress={() => openPreset(p)}>
+              <Ionicons name="add-circle-outline" size={14} color={colors.brand} />
+              <Text style={styles.presetTxt}>{p.name}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
         {strategies.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="construct-outline" size={44} color={colors.onSurface3} />
-            <Text style={styles.emptyTxt}>No strategies yet. Create one so the AI can flag rule violations.</Text>
+            <Text style={styles.emptyTxt}>No strategies yet. Tap a template above or create your own.</Text>
           </View>
         ) : strategies.map((s) => (
           <Pressable key={s.id} testID={`strategy-${s.id}`} style={styles.card} onPress={() => openEdit(s)}>
@@ -112,6 +125,11 @@ export default function Strategy() {
 }
 
 const styles = StyleSheet.create({
+  presetLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: spacing.sm },
+  presetRow: { gap: spacing.sm, paddingBottom: spacing.lg },
+  presetChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.surface2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, flexShrink: 0 },
+  presetTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.base },
+
   flex: { flex: 1, backgroundColor: colors.surface },
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider },
   title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["3xl"] },

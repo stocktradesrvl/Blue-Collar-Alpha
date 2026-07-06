@@ -1,0 +1,55 @@
+{
+  "summary": "Backend-only testing of NEW FEATURE BATCH for TradeMind AI. Wrote new suite /app/backend/tests/test_new_features.py (26 tests, all pass) covering: (1) change-password, (2) account-balance, (3) taken flag + multi-strategy, (4) new pricing $19.99/$49.99, (5) pre-trade grader Pro+ gating, (6) regression on payments/coach/auth. Also fixed 2 stale asserts in test_payments.py that hardcoded old prices (2900/7900 -> 1999/4999). FULL SUITE: 84/84 pytest tests PASS (100%) across 4 test files. All 7 review-request features verified end-to-end with real base64 chart image (candlestick PNG from conftest) and live Claude Sonnet 4.6 vision + Stripe test-mode calls. Trader account fully restored at end: password=Test1234 (login verified), tier=premium, account_balance=10000. Key findings: (a) POST /auth/change-password correctly rejects wrong-current(400), <6-char new(400), same-as-current(400); valid change makes new pw work and old pw fail. (b) POST /user/balance rejects negative(400); on valid set (25000) dashboard.account_balance==25000+total_pnl and equity_curve[0]==25000. (c) analyze-screenshot with taken=false persists taken=False and is EXCLUDED from GET /trades?taken=true and from dashboard.total_trades/win_rate/pnl; PUT /trades/{id}/taken toggles correctly and returns 404 on unknown id. (d) strategy_ids=[id1,id2] stores both arrays; GET /trades?strategy_id=id1 matches trades that contain id1 anywhere in strategy_ids (query uses q['strategy_ids']=id which Mongo array-membership matches). (e) create-checkout-session pro returns cs_test_ session whose Stripe-retrieved price.unit_amount==1999; premium unit_amount==4999 (amount_total==0 during 7-day trial as expected). Client-sent 'amount'/'price'/'unit_amount' fields are ignored — server pricing authoritative. (f) POST /analyze/pretrade: fresh free user gets 402 with correct message ('The Pre-Trade Grader is a Pro feature'); pro & premium return 200 with grade(A-F), best_matching_strategy, rules_met[], rules_violated[], reasoning, considerations[], and non-empty disclaimer (137 chars, mentions 'NOT financial advice'). (g) Regressions all green: /payments/status invalid=400, /payments/cancel no-sub=400, /payments/webhook no-signature=400, coach free=402 / premium=200, auth/me/login/register/duplicate. Total runtime ~120s (dominated by Claude vision calls: 4x analyze-screenshot, 3x analyze/pretrade, 2x coach/chat, 1x daily-report, 1x analyze-chart).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/trades?strategy_id=<id>", "issue": "Query uses q['strategy_ids']=strategy_id which relies on Mongo array-membership match. Works correctly, but if a legacy trade has no strategy_ids field (only legacy strategy_id string), it will be excluded from the filter. Consider $or over both legacy strategy_id and new strategy_ids for backward-compat."},
+      {"endpoint": "PUT /api/trades/{id}/taken", "issue": "No validation that tid belongs to another user — 404 is returned when the tid+user_id combo doesn't match, which is correct, but the error 'Not found' is used for both non-existent and cross-user access. That is actually good (prevents id enumeration); noted as an intentional design choice."},
+      {"endpoint": "POST /api/payments/create-checkout-session (premium)", "issue": "Server passes subscription_data.trial_period_days=7 but the returned Stripe Session.subscription_data isn't easily readable on the retrieved Session object until after checkout completes. Trial config is verified indirectly by the fact that amount_total=0 while unit_amount=4999 (Stripe trial behavior). Not a bug — just an observability note."},
+      {"endpoint": "POST /api/analyze/pretrade", "issue": "When user has no strategies at all, the AI is passed 'No strategies defined.' and can still return a grade — semantically fine but 'best_matching_strategy' becomes meaningless. Could optionally return 400/short-circuit with a hint to create a strategy first."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_payments.py",
+    "/app/backend/tests/test_referral_and_advanced.py",
+    "/app/backend/tests/test_trademind_api.py",
+    "/app/test_reports/pytest/new_features_results.xml",
+    "/app/test_reports/pytest/all_results.xml"
+  ],
+  "action_items": [
+    "Optional: GET /api/trades?strategy_id=<id> — add $or match over legacy strategy_id field for backward compatibility with pre-multi-strategy trades.",
+    "Optional: pre-trade grader could return a helpful 400/hint when the user has zero strategies, since best_matching_strategy is meaningless in that case.",
+    "Optional: /trades/{id}/taken PUT could return 200 with a no-op body if the value equals current, to be strictly idempotent (currently still writes)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:204-213 change-password check order is correct: verify current password FIRST (else attacker with just a token could probe length rules); then length; then equality. Solid.",
+    "server.py:215-221 /user/balance guards negative and immediately re-reads via find_one so response has fresh state — good pattern.",
+    "server.py:255-332 analyze-screenshot cleanly supports both legacy strategy_id (backward compat) and new strategy_ids list, and stores BOTH plus first as scalar strategy_id/strategy_name — nice migration story.",
+    "server.py:397-411 list_trades taken filter: taken=True uses {'$ne': False} which correctly INCLUDES trades where taken is missing/undefined (legacy) or True — this is the right choice for dashboard math (backfill without migration).",
+    "server.py:428-430 dashboard filters `t.get('taken', True) is not False` — mirrors the list filter, ensuring stat + list consistency.",
+    "server.py:364-395 /analyze/pretrade: mandatory disclaimer appended AFTER LLM extraction, so even if the model omits it, the response always carries it — defence-in-depth for compliance.",
+    "server.py:33-34 STRIPE_PACKAGES amounts are hard-coded server-side; create_checkout ignores any client-sent price/amount/unit_amount — verified end-to-end.",
+    "server.py:711 file is 711 lines (crossed 700-line threshold from iter 2). Recommend splitting into routers (auth, trades, payments, coach) at next opportunity.",
+    "server.py:401-402 strategy_id filter relies on `q['strategy_ids']=strategy_id` — Mongo matches this against arrays via membership; verified. Legacy trades stored with only scalar `strategy_id` won't match — see minor issue above."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_features.py (NEW, 26 tests)",
+    "/app/backend/tests/test_payments.py (updated: 2 stale assertions 2900->1999, 7900->4999 to match new pricing)"
+  ],
+  "success_rate": {
+    "backend": "100% (84/84 tests passed across 4 files)",
+    "frontend": "not tested (backend-only request)"
+  },
+  "seed_data_creation": "One fresh TEST_free_<uuid>@test.com per run (to test pre-trade 402 gating). All test strategies (TEST_STRAT_A/B) and trades created during the taken-flag suite are deleted in the cleanup test. trader@test.com fully restored at end: password=Test1234, tier=premium, account_balance=10000.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend/tests && EXPO_PUBLIC_BACKEND_URL=$(grep EXPO_PUBLIC_BACKEND_URL /app/frontend/.env | cut -d= -f2) STRIPE_SECRET_KEY=$(grep '^STRIPE_SECRET_KEY' /app/backend/.env | cut -d= -f2) pytest -v. Suite runs ~120s (Claude vision + Stripe live calls). Trader currently: pw=Test1234 tier=premium balance=10000. The pre-trade grader test creates 1 fresh free user per run — safe to re-run indefinitely. If pricing ever changes again, update BOTH test_new_features.py::TestPricing (expected_cents dict) AND test_payments.py::test_server_side_price_authority + test_premium_amount_is_4999_with_trial.",
+  "rca_of_issue": "N/A — no functional defects. Two stale asserts in test_payments.py (from an earlier pricing scheme of $29/$79) were failing because the server correctly returned the NEW $19.99/$49.99 — I updated the tests, not the code. This confirms the intended pricing change is in effect."
+}

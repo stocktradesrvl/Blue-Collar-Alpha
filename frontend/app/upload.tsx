@@ -15,10 +15,14 @@ export default function Upload() {
   const toast = useToast();
   const [image, setImage] = useState<string | null>(null);
   const [strategies, setStrategies] = useState<any[]>([]);
-  const [strategyId, setStrategyId] = useState<string | null>(null);
+  const [strategyIds, setStrategyIds] = useState<string[]>([]);
+  const [taken, setTaken] = useState(true);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { api.get("/strategies").then(setStrategies).catch(() => {}); }, []);
+
+  const toggleStrategy = (id: string) =>
+    setStrategyIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const pick = async (fromCamera: boolean) => {
     const perm = fromCamera
@@ -35,7 +39,7 @@ export default function Upload() {
     if (!image) return toast("Add a screenshot first", "error");
     setBusy(true);
     try {
-      const trade = await api.post("/trades/analyze-screenshot", { image_base64: image, strategy_id: strategyId });
+      const trade = await api.post("/trades/analyze-screenshot", { image_base64: image, strategy_ids: strategyIds, taken });
       router.replace(`/trade/${trade.id}`);
     } catch (e: any) {
       toast(e.message || "Analysis failed", "error");
@@ -70,16 +74,31 @@ export default function Upload() {
           </View>
         )}
 
-        <Text style={styles.label}>Match against strategy (optional)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          <Pressable testID="strat-none" onPress={() => setStrategyId(null)} style={[styles.chip, !strategyId && styles.chipActive]}>
-            <Text style={[styles.chipTxt, !strategyId && styles.chipTxtActive]}>None</Text>
+        <Text style={styles.label}>Did you take this trade?</Text>
+        <View style={styles.takenRow}>
+          <Pressable testID="taken-yes" onPress={() => setTaken(true)} style={[styles.takenBtn, taken && styles.takenActive]}>
+            <Ionicons name="checkmark-circle" size={18} color={taken ? colors.onBrand : colors.onSurface2} />
+            <Text style={[styles.takenTxt, taken && styles.takenTxtActive]}>Yes, executed</Text>
           </Pressable>
-          {strategies.map((s) => (
-            <Pressable key={s.id} testID={`strat-${s.id}`} onPress={() => setStrategyId(s.id)} style={[styles.chip, strategyId === s.id && styles.chipActive]}>
-              <Text style={[styles.chipTxt, strategyId === s.id && styles.chipTxtActive]}>{s.name}</Text>
-            </Pressable>
-          ))}
+          <Pressable testID="taken-no" onPress={() => setTaken(false)} style={[styles.takenBtn, !taken && styles.takenActive]}>
+            <Ionicons name="eye-outline" size={18} color={!taken ? colors.onBrand : colors.onSurface2} />
+            <Text style={[styles.takenTxt, !taken && styles.takenTxtActive]}>No, missed/idea</Text>
+          </Pressable>
+        </View>
+        {!taken && <Text style={styles.hint}>Not-taken trades are logged separately and excluded from your P&L stats.</Text>}
+
+        <Text style={styles.label}>Match against strategies (optional)</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {strategies.length === 0 && <Text style={styles.noStrat}>No strategies yet — add some in the Strategy tab.</Text>}
+          {strategies.map((s) => {
+            const sel = strategyIds.includes(s.id);
+            return (
+              <Pressable key={s.id} testID={`strat-${s.id}`} onPress={() => toggleStrategy(s.id)} style={[styles.chip, sel && styles.chipActive]}>
+                {sel && <Ionicons name="checkmark" size={14} color={colors.onBrand} />}
+                <Text style={[styles.chipTxt, sel && styles.chipTxtActive]}>{s.name}</Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
 
         <Pressable testID="analyze-btn" style={[styles.analyzeBtn, !image && styles.disabled]} onPress={analyze} disabled={busy || !image}>
@@ -104,10 +123,16 @@ const styles = StyleSheet.create({
   clearTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.base },
   label: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.8, marginTop: spacing.xl, marginBottom: spacing.md },
   chips: { gap: spacing.sm, paddingRight: spacing.lg },
-  chip: { height: 36, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, justifyContent: "center", flexShrink: 0 },
+  chip: { height: 36, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, justifyContent: "center", flexShrink: 0 },
   chipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
   chipTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
   chipTxtActive: { color: colors.onBrand },
+  noStrat: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.base },
+  takenRow: { flexDirection: "row", gap: spacing.sm },
+  takenBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, paddingVertical: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+  takenActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  takenTxt: { color: colors.onSurface2, fontFamily: font.display, fontSize: fs.base },
+  takenTxtActive: { color: colors.onBrand },
   analyzeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.brand, borderRadius: radius.md, paddingVertical: spacing.lg, marginTop: spacing.xl },
   disabled: { opacity: 0.4 },
   analyzeTxt: { color: colors.onBrand, fontFamily: font.displayBold, fontSize: fs.lg },
