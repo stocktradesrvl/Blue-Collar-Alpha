@@ -99,21 +99,21 @@ export default function PreTrade() {
                 <View style={styles.resHead}>
                   <View>
                     <Text style={styles.resLabel}>Setup fit grade</Text>
-                    <Text style={styles.bestFit}>Best fit: {result.best_matching_strategy || "None"}</Text>
+                    <Text style={styles.bestFit}>Best fit: {String(result.best_matching_strategy || "None")}</Text>
                   </View>
-                  <GradeBadge grade={result.grade || "C"} size={48} />
+                  <GradeBadge grade={String(result.grade || "C").trim().toUpperCase().slice(0,1) || "C"} size={48} />
                 </View>
-                <Text style={styles.trend}>Trend: {(result.trend || "unknown").toUpperCase()}</Text>
+                <Text style={styles.trend}>Trend: {String(result.trend || "unknown").toUpperCase()}</Text>
                 <Block title="Rules met" items={result.rules_met} color={colors.success} icon="checkmark-circle" />
                 <Block title="Rules violated" items={result.rules_violated} color={colors.error} icon="close-circle" />
                 <Block title="Patterns" items={result.patterns} color={colors.brand} icon="pulse" />
                 <Text style={styles.reasoningLabel}>Analysis</Text>
-                <Text style={styles.reasoning}>{result.reasoning}</Text>
+                <Text style={styles.reasoning}>{String(result.reasoning || "")}</Text>
                 {(result.considerations || []).length > 0 && (
                   <>
                     <Text style={styles.reasoningLabel}>Considerations</Text>
                     {result.considerations.map((c: string, i: number) => (
-                      <View key={i} style={styles.consRow}><Ionicons name="ellipse" size={6} color={colors.onSurface3} /><Text style={styles.consTxt}>{c}</Text></View>
+                      <View key={i} style={styles.consRow}><Ionicons name="ellipse" size={6} color={colors.onSurface3} /><Text style={styles.consTxt}>{String(c)}</Text></View>
                     ))}
                   </>
                 )}
@@ -135,7 +135,7 @@ function Block({ title, items, color, icon }: { title: string; items?: string[];
     <View style={{ marginTop: spacing.md }}>
       <Text style={styles.blockTitle}>{title}</Text>
       {items.map((it, i) => (
-        <View key={i} style={styles.blockRow}><Ionicons name={icon} size={14} color={color} /><Text style={styles.blockTxt}>{it}</Text></View>
+        <View key={i} style={styles.blockRow}><Ionicons name={icon} size={14} color={color} /><Text style={styles.blockTxt}>{String(it)}</Text></View>
       ))}
     </View>
   );

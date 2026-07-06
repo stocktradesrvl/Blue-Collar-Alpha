@@ -306,20 +306,43 @@ async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
             return float(v)
         except Exception:
             return d
+
+    def sstr(v, d=""):
+        if isinstance(v, str):
+            return v
+        if isinstance(v, list):
+            return " ".join(sstr(x) for x in v)
+        if isinstance(v, (int, float, bool)):
+            return str(v)
+        if v is None:
+            return d
+        return str(v)
+
+    grade = sstr(data.get("setup_grade", "C")).strip().upper()[:1]
+    if grade not in ("A", "B", "C", "D", "F"):
+        grade = "C"
+    rv = data.get("rule_violations", [])
+    rule_violations = [sstr(x) for x in rv if x] if isinstance(rv, list) else ([sstr(rv)] if rv else [])
+    adv = data.get("advanced") or {}
+    if not isinstance(adv, dict):
+        adv = {}
+    # Flatten any nested values so the client never renders raw objects.
+    advanced = {sstr(k): (v if isinstance(v, (str, int, float, bool)) else sstr(v)) for k, v in adv.items()}
+
     doc = {
         "id": str(uuid.uuid4()), "user_id": user["id"],
-        "symbol": str(data.get("symbol", "N/A")).upper(),
-        "asset_type": data.get("asset_type", "stock"),
-        "direction": data.get("direction", "long"),
+        "symbol": sstr(data.get("symbol"), "N/A").upper(),
+        "asset_type": sstr(data.get("asset_type"), "stock"),
+        "direction": sstr(data.get("direction"), "long"),
         "entry": num(data.get("entry")), "exit": num(data.get("exit")),
         "quantity": num(data.get("quantity"), 1), "pnl": num(data.get("pnl")),
-        "trade_time": data.get("trade_time"),
-        "setup_grade": data.get("setup_grade", "C"),
+        "trade_time": sstr(data.get("trade_time")) or None,
+        "setup_grade": grade,
         "strategy_followed": bool(data.get("strategy_followed", True)),
-        "rule_violations": data.get("rule_violations", []) or [],
-        "detected_setup": data.get("detected_setup", "Unknown"),
-        "ai_summary": data.get("ai_summary", ""),
-        "advanced": data.get("advanced") or {},
+        "rule_violations": rule_violations,
+        "detected_setup": sstr(data.get("detected_setup"), "Unknown"),
+        "ai_summary": sstr(data.get("ai_summary")),
+        "advanced": advanced,
         "taken": inp.taken,
         "strategy_ids": [s["id"] for s in strategies],
         "strategy_names": [s["name"] for s in strategies],

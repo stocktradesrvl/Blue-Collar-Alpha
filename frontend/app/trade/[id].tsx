@@ -45,7 +45,7 @@ export default function TradeDetail() {
           <View style={styles.heroBottom}>
             <View>
               <Text style={styles.symbol}>{trade.symbol}</Text>
-              <Text style={styles.sub}>{trade.direction?.toUpperCase()} · {trade.asset_type} · {trade.trade_time || "—"}</Text>
+              <Text style={styles.sub}>{String(trade.direction || "").toUpperCase()} · {trade.asset_type} · {trade.trade_time || "—"}</Text>
             </View>
             <GradeBadge grade={trade.setup_grade || "C"} size={48} />
           </View>
@@ -65,7 +65,7 @@ export default function TradeDetail() {
 
           <View style={styles.setupCard}>
             <Text style={styles.setupLabel}>Detected Setup</Text>
-            <Text style={styles.setupName}>{trade.detected_setup || "Unknown"}</Text>
+            <Text style={styles.setupName}>{String(trade.detected_setup || "Unknown")}</Text>
           </View>
 
           <Pressable testID="toggle-taken" style={styles.takenCard} onPress={toggleTaken}>
@@ -97,7 +97,7 @@ export default function TradeDetail() {
           <Text style={styles.section}>Coach Insight</Text>
           <View style={styles.aiCard}>
             <Ionicons name="sparkles" size={16} color={colors.brand} />
-            <Text style={styles.aiTxt}>{trade.ai_summary || "No summary available."}</Text>
+            <Text style={styles.aiTxt}>{String(trade.ai_summary || "No summary available.")}</Text>
           </View>
 
           {trade.advanced && Object.keys(trade.advanced).length > 0 && (
