@@ -88,7 +88,7 @@ export default function Profile() {
     if (!code) return;
     try {
       await Share.share({
-        message: `I'm using TradeMind AI — an AI trading coach that reviews your trades from screenshots. Sign up with my code ${code} and we both get 20 bonus trades. 📈`,
+        message: `I'm using Blue Collar Strategy Guide — an AI trading coach that reviews your trades from screenshots. Sign up with my code ${code} and we both get 20 bonus trades. 📈`,
       });
     } catch {}
   };

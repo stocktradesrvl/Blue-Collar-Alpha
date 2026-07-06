@@ -28,7 +28,7 @@ export default function Login() {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 60 }]} keyboardShouldPersistTaps="handled">
         <View style={styles.logo}><Ionicons name="trending-up" size={34} color={colors.onBrand} /></View>
-        <Text style={styles.title}>TradeMind AI</Text>
+        <Text style={styles.title}>Blue Collar Strategy Guide</Text>
         <Text style={styles.subtitle}>Your personal AI trading coach</Text>
 
         <View style={styles.form}>
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.surface },
   container: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
   logo: { width: 64, height: 64, borderRadius: radius.lg, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center", marginBottom: spacing.lg },
-  title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: 38, letterSpacing: 0.5 },
+  title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: 30, letterSpacing: 0.5 },
   subtitle: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.lg, marginTop: spacing.xs, marginBottom: spacing.xxl },
   form: { gap: spacing.sm },
   label: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, marginTop: spacing.md, marginBottom: spacing.xs, textTransform: "uppercase", letterSpacing: 1 },
