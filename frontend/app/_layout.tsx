@@ -25,12 +25,12 @@ function useAppFonts() {
     (async () => {
       try {
         await Font.loadAsync({
-          Rajdhani: "https://github.com/google/fonts/raw/main/ofl/rajdhani/Rajdhani-SemiBold.ttf",
-          RajdhaniBold: "https://github.com/google/fonts/raw/main/ofl/rajdhani/Rajdhani-Bold.ttf",
-          DMSans: "https://github.com/google/fonts/raw/main/ofl/dmsans/DMSans%5Bopsz,wght%5D.ttf",
+          Rajdhani: require("../assets/fonts/Rajdhani-SemiBold.ttf"),
+          RajdhaniBold: require("../assets/fonts/Rajdhani-Bold.ttf"),
+          DMSans: require("../assets/fonts/DMSans.ttf"),
         });
       } catch (e) {
-        // Non-blocking: fall back to system fonts if CDN unreachable.
+        // Non-blocking: fall back to system fonts if load fails.
       } finally {
         setDone(true);
       }
