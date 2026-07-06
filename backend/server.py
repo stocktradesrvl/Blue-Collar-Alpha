@@ -535,7 +535,10 @@ async def coach_chat(inp: ChatIn, user=Depends(get_current_user)):
                    "violations": t.get("rule_violations")} for t in trades]
     ctx_strat = [{"name": s["name"], "rules": s.get("rules", [])} for s in strategies]
     system = (f"You are the trader's personal AI trading coach. Answer using ONLY the trader's own data below. "
-              f"Be specific, cite numbers, be direct and encouraging but honest. Keep answers concise (under 150 words).\n"
+              f"Be specific, cite numbers, be direct and encouraging but honest. Keep answers concise (under 150 words). "
+              f"After your answer, on a NEW line output exactly 'FOLLOWUPS:' followed by 3 short, specific follow-up "
+              f"questions the trader would naturally ask next based on your answer, separated by ' | '. "
+              f"Keep each follow-up under 7 words.\n"
               f"TRADES: {json.dumps(ctx_trades)}\nSTRATEGIES: {json.dumps(ctx_strat)}")
     # persist history
     await db.chat_messages.insert_one({"id": str(uuid.uuid4()), "user_id": user["id"], "role": "user",
@@ -546,9 +549,17 @@ async def coach_chat(inp: ChatIn, user=Depends(get_current_user)):
     except Exception as e:
         logger.error(f"coach err {e}")
         raise HTTPException(status_code=502, detail="AI coach failed.")
+    # Split the answer from the AI-generated follow-up suggestions.
+    answer = resp
+    suggestions = []
+    if "FOLLOWUPS:" in resp:
+        answer, _, follow = resp.partition("FOLLOWUPS:")
+        answer = answer.strip()
+        suggestions = [s.strip(" -•*").strip() for s in follow.replace("\n", " ").split("|")]
+        suggestions = [s for s in suggestions if s and len(s) < 60][:3]
     await db.chat_messages.insert_one({"id": str(uuid.uuid4()), "user_id": user["id"], "role": "assistant",
-                                       "content": resp, "created_at": datetime.now(timezone.utc).isoformat()})
-    return {"reply": resp}
+                                       "content": answer, "created_at": datetime.now(timezone.utc).isoformat()})
+    return {"reply": answer, "suggestions": suggestions}
 
 @api.get("/coach/history")
 async def coach_history(user=Depends(get_current_user)):

@@ -24,6 +24,7 @@ export default function Coach() {
   const router = useRouter();
   const { user } = useAuth();
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -46,8 +47,10 @@ export default function Coach() {
     try {
       const r = await api.post("/coach/chat", { message: text });
       setMessages([...next, { role: "assistant", content: r.reply }]);
+      setSuggestions(Array.isArray(r.suggestions) ? r.suggestions : []);
     } catch (e: any) {
       setMessages([...next, { role: "assistant", content: e.message || "Something went wrong." }]);
+      setSuggestions([]);
     } finally {
       setBusy(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
@@ -99,7 +102,7 @@ export default function Coach() {
           <View style={styles.followWrap}>
             <Text style={styles.followLabel}>Follow up</Text>
             <View style={styles.followRow}>
-              {FOLLOWUPS.filter((f) => !messages.some((m) => m.content === f)).slice(0, 3).map((f) => (
+              {(suggestions.length > 0 ? suggestions : FOLLOWUPS.filter((f) => !messages.some((m) => m.content === f))).slice(0, 3).map((f) => (
                 <Pressable key={f} testID={`followup-${f.slice(0, 6)}`} style={styles.followChip} onPress={() => send(f)}>
                   <Text style={styles.followTxt}>{f}</Text>
                 </Pressable>
