@@ -28,6 +28,7 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 - Subscription tiers with feature gating
 
 ## Implemented (2026-07-05)
+- Feature batch (2026-07-06): trade **Taken/Missed toggle** (missed excluded from stats; Journal Executed/Missed tabs); editable **starting account balance**; **20 preset strategy templates** + multi-select strategies per trade; **change password** (auth playbook); pricing → **Pro $19.99 / Premium $49.99**; **Pre-Trade Grader** (Pro+; chart + strategies → grade A–F, best-fit, rules met/violated, disclaimers); options/futures advanced analysis. Backend: 84/84 tests pass.
 - Referral system: unique code per user; signup w/ code → +20 bonus trades both sides; **milestone: 3 referrals → free 30-day Pro** (effective_tier, raw_tier preserved). Profile "Refer & Earn" card w/ native Share + stats + reward badge.
 - Options/Futures advanced analysis: screenshot extraction returns `advanced` object (options: greeks/IV/overpaying/suggested strike+expiry; futures: MFE/MAE/hold time/profit-left) shown on Trade Detail.
 - Full regression: **58/58 backend tests pass** (referral, milestone, effective-tier gating, advanced fields, payments, core).

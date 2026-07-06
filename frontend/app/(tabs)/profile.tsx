@@ -46,8 +46,14 @@ export default function Profile() {
       setBusy("free");
       try {
         if (user?.subscription_tier !== "free") {
-          const r = await api.post("/payments/cancel");
-          if (r.ok) { await refresh(); toast("Subscription cancelled", "info"); }
+          try {
+            const r = await api.post("/payments/cancel");
+            if (r.ok) { await refresh(); toast("Subscription cancelled", "info"); }
+          } catch {
+            // No active Stripe subscription (e.g. owner/reward access) — just switch tier.
+            await setTier("free");
+            toast("Switched to Free plan", "info");
+          }
         } else { await setTier("free"); }
       } catch (e: any) { toast(e.message, "error"); }
       finally { setBusy(null); }
