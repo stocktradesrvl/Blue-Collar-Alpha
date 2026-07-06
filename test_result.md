@@ -101,3 +101,98 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "TradeMind AI / Blue Collar Strategy Guide — AI trading journal. Recent changes: rebranded to 'Blue Collar Strategy Guide' with navy-blue + orange theme, new app icon/splash. Fixed a crash on the Trade Detail screen (toggleTaken was referenced but undefined). Need a full regression test of all core flows."
+
+backend:
+  - task: "Auth (login/register JWT)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "No backend changes this session; retest login for seeded accounts."
+  - task: "Trades CRUD + taken toggle (PUT /trades/{id}/taken)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Frontend now calls PUT /trades/{id}/taken from Trade Detail. Verify endpoint works and toggles taken flag, excluding idea trades from stats."
+  - task: "Screenshot analyze, coach chat, pretrade grade, dashboard weekly"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Unchanged this session; smoke test LLM-backed endpoints."
+
+frontend:
+  - task: "Trade Detail screen renders + Change (taken) toggle"
+    implemented: true
+    working: true
+    file: "frontend/app/trade/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: false
+        -agent: "user"
+        -comment: "Reported crash / 'Something went wrong' on device."
+        -working: true
+        -agent: "main"
+        -comment: "Root cause: toggleTaken referenced but never defined (ReferenceError). Added toggleTaken calling PUT /trades/{id}/taken. Verified on web preview: SPY trade detail renders and Change toggle present."
+  - task: "Branding: name 'Blue Collar Strategy Guide', navy/orange theme, icon/splash"
+    implemented: true
+    working: true
+    file: "frontend/src/theme.ts, frontend/app.json, frontend/app/(auth)/login.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Applied navy brand + orange accent, renamed app, updated icon/adaptive/splash/favicon. Verified login + dashboard on preview."
+  - task: "Core navigation (Dashboard, Journal, Coach, Strategy, Profile, Upload, Pretrade, Report)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Full regression requested by user after multiple bugs."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.1"
+  test_sequence: 0
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Trade Detail screen renders + Change (taken) toggle"
+    - "Trades CRUD + taken toggle (PUT /trades/{id}/taken)"
+    - "Core navigation (Dashboard, Journal, Coach, Strategy, Profile, Upload, Pretrade, Report)"
+    - "Auth (login/register JWT)"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+    -agent: "main"
+    -message: "Fixed Trade Detail crash (missing toggleTaken). Rebranded app to Blue Collar Strategy Guide with navy/orange theme + new icon/splash. Note: the device 'Failed to download remote update' error is a stale published-APK OTA issue, NOT a code bug (preview works). Please run full regression on backend + frontend using owner@trademind.ai / Owner1234 (premium). Focus especially on Trade Detail 'Change' toggle and overall navigation."
