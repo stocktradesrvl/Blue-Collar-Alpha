@@ -26,6 +26,15 @@ export default function TradeDetail() {
 
   const del = async () => { await api.del(`/trades/${id}`); toast("Trade deleted", "info"); router.replace("/(tabs)/journal"); };
 
+  const toggleTaken = async () => {
+    const next = trade.taken === false;
+    try {
+      await api.put(`/trades/${id}/taken`, { taken: next });
+      setTrade({ ...trade, taken: next });
+      toast(next ? "Marked as executed" : "Marked as idea (excluded from stats)", "info");
+    } catch (e: any) { toast(e.message, "error"); }
+  };
+
   if (loading || !trade) return <View style={styles.center}><ActivityIndicator color={colors.brand} size="large" /></View>;
 
   return (
