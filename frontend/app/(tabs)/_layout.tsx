@@ -2,9 +2,11 @@ import React from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, font } from "@/src/theme";
+import WhatsNewModal from "@/src/components/WhatsNewModal";
 
 export default function TabsLayout() {
   return (
+    <>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -20,5 +22,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="strategy" options={{ title: "Strategy", tabBarIcon: ({ color, size }) => <Ionicons name="construct" size={size} color={color} /> }} />
       <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ color, size }) => <Ionicons name="person-circle" size={size} color={color} /> }} />
     </Tabs>
+    <WhatsNewModal />
+    </>
   );
 }
