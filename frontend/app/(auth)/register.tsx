@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,39 +28,47 @@ export default function Register() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 20 }]} keyboardShouldPersistTaps="handled">
-        <Pressable testID="back-btn" onPress={() => router.back()} style={styles.back}>
-          <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
-        </Pressable>
-        <Text style={styles.title}>Create account</Text>
-        <Text style={styles.subtitle}>Start your first coaching session free</Text>
-
-        <View style={styles.form}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput testID="reg-email" style={styles.input} placeholder="you@email.com" placeholderTextColor={colors.onSurface3}
-            value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-          <Text style={styles.label}>Password</Text>
-          <TextInput testID="reg-password" style={styles.input} placeholder="Min 6 characters" placeholderTextColor={colors.onSurface3}
-            value={password} onChangeText={setPassword} secureTextEntry />
-          <Text style={styles.label}>Referral code (optional)</Text>
-          <TextInput testID="reg-referral" style={styles.input} placeholder="Get 20 bonus trades" placeholderTextColor={colors.onSurface3}
-            value={referral} onChangeText={setReferral} autoCapitalize="characters" />
-
-          <Pressable testID="reg-submit" style={styles.btn} onPress={submit} disabled={busy}>
-            {busy ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.btnTxt}>Create Account</Text>}
+    <View style={styles.flex}>
+      <Image source={require("../../assets/images/icon.png")} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <LinearGradient
+        colors={["rgba(10,10,10,0.35)", "rgba(10,10,10,0.72)", "rgba(10,10,10,0.94)"]}
+        style={StyleSheet.absoluteFill}
+      />
+      <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 20 }]} keyboardShouldPersistTaps="handled">
+          <Pressable testID="back-btn" onPress={() => router.back()} style={styles.back}>
+            <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
-          <Pressable testID="go-login" onPress={() => router.back()} style={styles.linkWrap}>
-            <Text style={styles.link}>Have an account? <Text style={styles.linkBold}>Log in</Text></Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <Text style={styles.title}>Create account</Text>
+          <Text style={styles.subtitle}>Start your first coaching session free</Text>
+
+          <View style={styles.form}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput testID="reg-email" style={styles.input} placeholder="you@email.com" placeholderTextColor={colors.onSurface3}
+              value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+            <Text style={styles.label}>Password</Text>
+            <TextInput testID="reg-password" style={styles.input} placeholder="Min 6 characters" placeholderTextColor={colors.onSurface3}
+              value={password} onChangeText={setPassword} secureTextEntry />
+            <Text style={styles.label}>Referral code (optional)</Text>
+            <TextInput testID="reg-referral" style={styles.input} placeholder="Get 20 bonus trades" placeholderTextColor={colors.onSurface3}
+              value={referral} onChangeText={setReferral} autoCapitalize="characters" />
+
+            <Pressable testID="reg-submit" style={styles.btn} onPress={submit} disabled={busy}>
+              {busy ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.btnTxt}>Create Account</Text>}
+            </Pressable>
+            <Pressable testID="go-login" onPress={() => router.back()} style={styles.linkWrap}>
+              <Text style={styles.link}>Have an account? <Text style={styles.linkBold}>Log in</Text></Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.surface },
+  kav: { flex: 1, backgroundColor: "transparent" },
   container: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
   back: { marginBottom: spacing.xl, width: 40 },
   title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: 34 },
