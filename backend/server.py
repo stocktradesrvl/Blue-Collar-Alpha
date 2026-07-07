@@ -787,6 +787,38 @@ app.include_router(api)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
+# Accounts that must always have permanent full (Premium) access.
+PREMIUM_SEED_ACCOUNTS = [
+    {"email": "stocktradesrvl@gmail.com", "password": "TradeAdmin123"},
+    {"email": "owner@trademind.ai", "password": "Owner1234"},
+]
+
+@app.on_event("startup")
+async def seed_premium_accounts():
+    """Idempotently ensure owner/admin accounts exist with permanent Premium access.
+    Runs on every startup so access persists across deploys / fresh databases."""
+    for acc in PREMIUM_SEED_ACCOUNTS:
+        email = acc["email"].lower()
+        existing = await db.users.find_one({"email": email})
+        if existing:
+            updates = {"subscription_tier": "premium"}
+            if not existing.get("referral_code"):
+                updates["referral_code"] = gen_referral_code()
+            if not existing.get("account_balance"):
+                updates["account_balance"] = 50000
+            await db.users.update_one({"email": email}, {"$set": updates})
+        else:
+            doc = {
+                "id": str(uuid.uuid4()), "email": email,
+                "password_hash": hash_pw(acc["password"]),
+                "subscription_tier": "premium", "account_balance": 50000,
+                "referral_code": gen_referral_code(), "bonus_trades": 0,
+                "referral_count": 0, "referred_by": None,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await db.users.insert_one(doc)
+        logger.info("Premium seed ensured for %s", email)
+
 @app.on_event("shutdown")
 async def shutdown():
     client.close()

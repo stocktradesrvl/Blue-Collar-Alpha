@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,34 +27,42 @@ export default function Login() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 60 }]} keyboardShouldPersistTaps="handled">
-        <View style={styles.logo}><Ionicons name="trending-up" size={34} color={colors.onBrand} /></View>
-        <Text style={styles.title}>Blue Collar Strategy Guide</Text>
-        <Text style={styles.subtitle}>Your personal AI trading coach</Text>
+    <View style={styles.flex}>
+      <Image source={require("../../assets/images/icon.png")} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <LinearGradient
+        colors={["rgba(10,10,10,0.35)", "rgba(10,10,10,0.72)", "rgba(10,10,10,0.94)"]}
+        style={StyleSheet.absoluteFill}
+      />
+      <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 60 }]} keyboardShouldPersistTaps="handled">
+          <View style={styles.logo}><Ionicons name="trending-up" size={34} color={colors.onBrand} /></View>
+          <Text style={styles.title}>Blue Collar Strategy Guide</Text>
+          <Text style={styles.subtitle}>Your personal AI trading coach</Text>
 
-        <View style={styles.form}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput testID="login-email" style={styles.input} placeholder="you@email.com" placeholderTextColor={colors.onSurface3}
-            value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-          <Text style={styles.label}>Password</Text>
-          <TextInput testID="login-password" style={styles.input} placeholder="••••••••" placeholderTextColor={colors.onSurface3}
-            value={password} onChangeText={setPassword} secureTextEntry />
+          <View style={styles.form}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput testID="login-email" style={styles.input} placeholder="you@email.com" placeholderTextColor={colors.onSurface3}
+              value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+            <Text style={styles.label}>Password</Text>
+            <TextInput testID="login-password" style={styles.input} placeholder="••••••••" placeholderTextColor={colors.onSurface3}
+              value={password} onChangeText={setPassword} secureTextEntry />
 
-          <Pressable testID="login-submit" style={styles.btn} onPress={submit} disabled={busy}>
-            {busy ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.btnTxt}>Log In</Text>}
-          </Pressable>
-          <Pressable testID="go-register" onPress={() => router.push("/(auth)/register")} style={styles.linkWrap}>
-            <Text style={styles.link}>New here? <Text style={styles.linkBold}>Create an account</Text></Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <Pressable testID="login-submit" style={styles.btn} onPress={submit} disabled={busy}>
+              {busy ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.btnTxt}>Log In</Text>}
+            </Pressable>
+            <Pressable testID="go-register" onPress={() => router.push("/(auth)/register")} style={styles.linkWrap}>
+              <Text style={styles.link}>New here? <Text style={styles.linkBold}>Create an account</Text></Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.surface },
+  kav: { flex: 1, backgroundColor: "transparent" },
   container: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
   logo: { width: 64, height: 64, borderRadius: radius.lg, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center", marginBottom: spacing.lg },
   title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: 30, letterSpacing: 0.5 },
