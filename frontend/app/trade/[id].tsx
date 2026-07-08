@@ -37,6 +37,9 @@ export default function TradeDetail() {
 
   if (loading || !trade) return <View style={styles.center}><ActivityIndicator color={colors.brand} size="large" /></View>;
 
+  const win = (trade.pnl || 0) >= 0;
+  const heroTop = win ? "rgba(0,230,118,0.30)" : "rgba(255,61,0,0.30)";
+
   return (
     <View style={styles.flex}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
@@ -44,7 +47,7 @@ export default function TradeDetail() {
           {trade.image_base64 ? (
             <Image source={{ uri: `data:image/jpeg;base64,${trade.image_base64}` }} style={styles.heroImg} contentFit="cover" />
           ) : <View style={[styles.heroImg, { backgroundColor: colors.surface2 }]} />}
-          <LinearGradient colors={["rgba(13,17,23,0.65)", "transparent", "rgba(13,17,23,0.97)"]} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={[heroTop, "rgba(13,17,23,0.55)", "rgba(13,17,23,0.97)"]} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
           <Pressable testID="back-detail" onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/journal")} style={[styles.back, { top: insets.top + spacing.sm }]}>
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
