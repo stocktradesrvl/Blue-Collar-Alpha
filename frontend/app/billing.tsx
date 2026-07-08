@@ -48,6 +48,8 @@ export default function Billing() {
                 {sub.trial_end ? <Row label="Trial ends" value={fmtDate(sub.trial_end)} valueColor={colors.brand} /> : null}
                 <Row label={sub.cancel_at_period_end ? "Access until" : "Renews on"} value={fmtDate(sub.current_period_end)} />
               </>
+            ) : (data?.tier && data.tier !== "free") ? (
+              <Text style={styles.freeNote}>{`You have complimentary ${String(data.tier).toUpperCase()} access — no paid billing on this account.`}</Text>
             ) : (
               <Text style={styles.freeNote}>{"You're on the Free plan — no active billing. Upgrade from Profile to unlock Pro/Premium."}</Text>
             )}
