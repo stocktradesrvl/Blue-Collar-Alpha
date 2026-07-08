@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Svg, { Polyline, Defs, LinearGradient as SvgGradient, Stop, Polygon, Line, Circle } from "react-native-svg";
 import Animated, { useSharedValue, useAnimatedProps, withTiming, Easing } from "react-native-reanimated";
 import { colors, spacing, radius, font, fs, gradients, glow, GRADE_COLORS } from "@/src/theme";
+import { CountUpText } from "@/src/components/anim";
 
 const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
@@ -30,8 +31,8 @@ export function GradientCard({ children, style, accent }: { children: React.Reac
   );
 }
 
-export function StatCard({ label, value, valueColor, sub, style, testID, icon }:
-  { label: string; value: string; valueColor?: string; sub?: string; style?: ViewStyle; testID?: string; icon?: string }) {
+export function StatCard({ label, value, valueColor, sub, style, testID, icon, countTo, format }:
+  { label: string; value: string; valueColor?: string; sub?: string; style?: ViewStyle; testID?: string; icon?: string; countTo?: number; format?: (n: number) => string }) {
   const accent = valueColor || colors.brand;
   return (
     <LinearGradient testID={testID} colors={gradients.card} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -44,7 +45,12 @@ export function StatCard({ label, value, valueColor, sub, style, testID, icon }:
           </View>
         ) : null}
       </View>
-      <Text style={[styles.statValue, valueColor ? { color: valueColor } : null]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      {countTo !== undefined && format ? (
+        <CountUpText value={countTo} format={format} numberOfLines={1} adjustsFontSizeToFit
+          style={[styles.statValue, valueColor ? { color: valueColor } : null]} />
+      ) : (
+        <Text style={[styles.statValue, valueColor ? { color: valueColor } : null]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      )}
       {sub ? <Text style={styles.statSub} numberOfLines={1}>{sub}</Text> : null}
     </LinearGradient>
   );

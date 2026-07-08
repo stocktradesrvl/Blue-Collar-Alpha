@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, PressableProps, ViewStyle, StyleProp, Text, TextStyle } from "react-native";
+import { Pressable, PressableProps, ViewStyle, StyleProp, Text, TextStyle, TextProps } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -42,9 +42,9 @@ function useCountUp(value: number, duration = 1000) {
   return display;
 }
 
-export function CountUpText({ value, style, format, duration = 1000, testID }:
-  { value: number; style?: StyleProp<TextStyle>; format: (n: number) => string; duration?: number; testID?: string }) {
+export function CountUpText({ value, style, format, duration = 1000, testID, ...rest }:
+  { value: number; style?: StyleProp<TextStyle>; format: (n: number) => string; duration?: number; testID?: string } & TextProps) {
   const n = useCountUp(value, duration);
-  return <Text testID={testID} style={style}>{format(n)}</Text>;
+  return <Text testID={testID} style={style} {...rest}>{format(n)}</Text>;
 }
 

@@ -115,15 +115,15 @@ export default function Dashboard() {
                 <View style={styles.weeklyRow}>
                   <View>
                     <Text style={styles.weeklyLabel}>P&L</Text>
-                    <Text style={[styles.weeklyVal, { color: pnlColor(weekly.this_week.pnl) }]}>{money(weekly.this_week.pnl)}</Text>
+                    <CountUpText value={weekly.this_week.pnl} format={money} style={[styles.weeklyVal, { color: pnlColor(weekly.this_week.pnl) }]} />
                   </View>
                   <View>
                     <Text style={styles.weeklyLabel}>Win Rate</Text>
-                    <Text style={styles.weeklyVal}>{weekly.this_week.win_rate}%</Text>
+                    <CountUpText value={weekly.this_week.win_rate} format={(n) => `${n.toFixed(1)}%`} style={styles.weeklyVal} />
                   </View>
                   <View>
                     <Text style={styles.weeklyLabel}>Trades</Text>
-                    <Text style={styles.weeklyVal}>{weekly.this_week.trades}</Text>
+                    <CountUpText value={weekly.this_week.trades} format={(n) => `${Math.round(n)}`} style={styles.weeklyVal} />
                   </View>
                 </View>
                 <View style={styles.takeawayRow}>
@@ -135,10 +135,10 @@ export default function Dashboard() {
             )}
 
             <Animated.View entering={FadeInDown.duration(400).delay(180)} style={styles.grid}>
-              <StatCard testID="stat-winrate" label="Win Rate" icon="trophy" value={`${stats.win_rate}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
-              <StatCard testID="stat-pf" label="Profit Factor" icon="trending-up" value={`${stats.profit_factor}`} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
-              <StatCard testID="stat-winner" label="Avg Winner" icon="arrow-up-circle" value={money(stats.avg_winner)} style={styles.half} valueColor={colors.success} />
-              <StatCard testID="stat-loser" label="Avg Loser" icon="arrow-down-circle" value={money(stats.avg_loser)} style={styles.half} valueColor={colors.error} />
+              <StatCard testID="stat-winrate" label="Win Rate" icon="trophy" value={`${stats.win_rate}%`} countTo={stats.win_rate} format={(n) => `${n.toFixed(1)}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
+              <StatCard testID="stat-pf" label="Profit Factor" icon="trending-up" value={`${stats.profit_factor}`} countTo={stats.profit_factor} format={(n) => n.toFixed(2)} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
+              <StatCard testID="stat-winner" label="Avg Winner" icon="arrow-up-circle" value={money(stats.avg_winner)} countTo={stats.avg_winner} format={money} style={styles.half} valueColor={colors.success} />
+              <StatCard testID="stat-loser" label="Avg Loser" icon="arrow-down-circle" value={money(stats.avg_loser)} countTo={stats.avg_loser} format={money} style={styles.half} valueColor={colors.error} />
             </Animated.View>
 
             <View style={styles.infoRow}>
