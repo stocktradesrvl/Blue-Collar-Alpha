@@ -9,7 +9,7 @@ import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs, money, pnlColor, gradients, glow, cardShadow } from "@/src/theme";
 import { StatCard, EquityCurve, GradientCard } from "@/src/components/ui";
-import { PressableScale } from "@/src/components/anim";
+import { PressableScale, CountUpText } from "@/src/components/anim";
 
 const RANGES: Record<string, number> = { "1W": 8, "1M": 31, ALL: 9999 };
 
@@ -66,7 +66,8 @@ export default function Dashboard() {
           <View style={styles.header}>
             <View>
               <Text style={styles.hi}>Account Balance</Text>
-              <Text testID="account-balance" style={styles.balance}>${(stats?.account_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+              <CountUpText testID="account-balance" style={styles.balance} value={stats?.account_balance || 0}
+                format={(n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
             </View>
             <View style={styles.dailyPill}>
               <Text style={styles.dailyLabel}>Today</Text>

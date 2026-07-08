@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, PressableProps, ViewStyle, StyleProp } from "react-native";
+import { Pressable, PressableProps, ViewStyle, StyleProp, Text, TextStyle } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -22,3 +22,29 @@ export function PressableScale({ children, style, onPressIn, onPressOut, scaleTo
     </AnimatedPressable>
   );
 }
+
+// Animates a number from 0 up to `value` on mount / when value changes.
+function useCountUp(value: number, duration = 1000) {
+  const [display, setDisplay] = React.useState(0);
+  React.useEffect(() => {
+    let raf: number;
+    const start = Date.now();
+    const tick = () => {
+      const t = Math.min(1, (Date.now() - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(value * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else setDisplay(value);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+  return display;
+}
+
+export function CountUpText({ value, style, format, duration = 1000, testID }:
+  { value: number; style?: StyleProp<TextStyle>; format: (n: number) => string; duration?: number; testID?: string }) {
+  const n = useCountUp(value, duration);
+  return <Text testID={testID} style={style}>{format(n)}</Text>;
+}
+
