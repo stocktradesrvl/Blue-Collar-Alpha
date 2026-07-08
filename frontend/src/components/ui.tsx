@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Polyline, Defs, LinearGradient as SvgGradient, Stop, Polygon, Line, Circle } from "react-native-svg";
 import Animated, { useSharedValue, useAnimatedProps, withTiming, Easing } from "react-native-reanimated";
@@ -10,6 +11,21 @@ import { CountUpText } from "@/src/components/anim";
 const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+// Full-screen ambient background: faint texture + navy glow scrim.
+// `tone` tints the top glow green (profit) or red (loss); default navy.
+export function ScreenBackground({ tone = "neutral" }: { tone?: "neutral" | "up" | "down" }) {
+  const glowTop =
+    tone === "up" ? "rgba(0,230,118,0.16)" :
+    tone === "down" ? "rgba(255,61,0,0.16)" :
+    "rgba(46,118,232,0.16)";
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Image source={require("../../assets/images/hero-bg.jpg")} style={[StyleSheet.absoluteFill, { opacity: 0.14 }]} contentFit="cover" />
+      <LinearGradient colors={[glowTop, "rgba(13,17,23,0.86)", colors.surface]} locations={[0, 0.42, 1]} style={StyleSheet.absoluteFill} />
+    </View>
+  );
+}
 
 export function GradeBadge({ grade, size = 30 }: { grade: string; size?: number }) {
   const c = GRADE_COLORS[grade] || colors.onSurface2;
@@ -31,8 +47,8 @@ export function GradientCard({ children, style, accent }: { children: React.Reac
   );
 }
 
-export function StatCard({ label, value, valueColor, sub, style, testID, icon, countTo, format }:
-  { label: string; value: string; valueColor?: string; sub?: string; style?: ViewStyle; testID?: string; icon?: string; countTo?: number; format?: (n: number) => string }) {
+export function StatCard({ label, value, valueColor, sub, style, testID, icon, countTo, format, trigger }:
+  { label: string; value: string; valueColor?: string; sub?: string; style?: ViewStyle; testID?: string; icon?: string; countTo?: number; format?: (n: number) => string; trigger?: number }) {
   const accent = valueColor || colors.brand;
   return (
     <LinearGradient testID={testID} colors={gradients.card} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -46,7 +62,7 @@ export function StatCard({ label, value, valueColor, sub, style, testID, icon, c
         ) : null}
       </View>
       {countTo !== undefined && format ? (
-        <CountUpText value={countTo} format={format} numberOfLines={1} adjustsFontSizeToFit
+        <CountUpText value={countTo} trigger={trigger} format={format} numberOfLines={1} adjustsFontSizeToFit
           style={[styles.statValue, valueColor ? { color: valueColor } : null]} />
       ) : (
         <Text style={[styles.statValue, valueColor ? { color: valueColor } : null]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
@@ -56,7 +72,7 @@ export function StatCard({ label, value, valueColor, sub, style, testID, icon, c
   );
 }
 
-export function EquityCurve({ data, width, height = 180 }: { data: number[]; width: number; height?: number }) {
+export function EquityCurve({ data, width, height = 180, replay = 0 }: { data: number[]; width: number; height?: number; replay?: number }) {
   const valid = !!data && data.length >= 2;
   const geom = React.useMemo(() => {
     if (!valid) return { line: "", area: "", length: 1, stroke: colors.onSurface3, last: { x: 0, y: 0 } };
@@ -77,7 +93,7 @@ export function EquityCurve({ data, width, height = 180 }: { data: number[]; wid
   React.useEffect(() => {
     progress.value = 0;
     progress.value = withTiming(1, { duration: 950, easing: Easing.out(Easing.cubic) });
-  }, [geom.length, data?.length, progress]);
+  }, [geom.length, data?.length, progress, replay]);
 
   const lineProps = useAnimatedProps(() => ({ strokeDashoffset: geom.length * (1 - progress.value) }));
   const fadeProps = useAnimatedProps(() => ({ opacity: progress.value }));

@@ -7,6 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
+import { ScreenBackground } from "@/src/components/ui";
 
 const SUGGESTIONS = ["Why am I losing money?", "What's my best setup?", "Should I stop after two losses?", "What mistakes cost me the most?"];
 const FOLLOWUPS = [
@@ -61,6 +62,7 @@ export default function Coach() {
   if (locked) {
     return (
       <View style={styles.flex}>
+        <ScreenBackground />
         <View style={[styles.lock, { paddingTop: insets.top + 80 }]}>
           <View style={styles.lockIcon}><Ionicons name="sparkles" size={40} color={colors.accent} /></View>
           <Text style={styles.lockTitle}>AI Coach Chat</Text>
@@ -75,6 +77,7 @@ export default function Coach() {
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
+      <ScreenBackground />
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Text style={styles.title}>AI Coach</Text>
         <Text style={styles.subtitle}>Answers from your own trades</Text>

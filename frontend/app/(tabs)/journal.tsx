@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs, money, pnlColor } from "@/src/theme";
-import { GradeBadge } from "@/src/components/ui";
+import { GradeBadge, ScreenBackground } from "@/src/components/ui";
 import { PressableScale } from "@/src/components/anim";
 
 const GRADES = ["All", "A", "B", "C", "D", "F"];
@@ -60,6 +60,7 @@ export default function Journal() {
 
   return (
     <View style={styles.flex}>
+      <ScreenBackground />
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Text style={styles.title}>Trade Journal</Text>
         <View style={styles.segment}>
@@ -102,7 +103,7 @@ export default function Journal() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.surface },
-  header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: "transparent", borderBottomWidth: 1, borderBottomColor: colors.divider },
   title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["3xl"], marginBottom: spacing.md },
   segment: { flexDirection: "row", backgroundColor: colors.surface2, borderRadius: radius.md, padding: 3, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
   segBtn: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.sm, alignItems: "center" },

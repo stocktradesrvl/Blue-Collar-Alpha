@@ -6,9 +6,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs, money, pnlColor, gradients, glow, cardShadow } from "@/src/theme";
-import { StatCard, EquityCurve, GradientCard } from "@/src/components/ui";
+import { StatCard, EquityCurve, GradientCard, ScreenBackground } from "@/src/components/ui";
 import { PressableScale, CountUpText } from "@/src/components/anim";
 
 const RANGES: Record<string, number> = { "1W": 8, "1M": 31, ALL: 9999 };
@@ -22,6 +23,8 @@ export default function Dashboard() {
   const [weekly, setWeekly] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<keyof typeof RANGES>("ALL");
+  const [refreshing, setRefreshing] = useState(false);
+  const [tick, setTick] = useState(0);
 
   const load = useCallback(async () => {
     try { setStats(await api.get("/dashboard/stats")); } catch {}
@@ -40,17 +43,28 @@ export default function Dashboard() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    await load();
+    setTick((t) => t + 1);
+    setRefreshing(false);
+  }, [load]);
+
   const curve = stats?.equity_curve || [];
   const shownCurve = range === "ALL" ? curve : curve.slice(-RANGES[range]);
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.brand} size="large" /></View>;
 
   const empty = !stats || stats.total_trades === 0;
+  const up = (stats?.total_pnl || 0) >= 0;
+  const heroTint = empty ? "rgba(46,118,232,0.30)" : up ? "rgba(0,230,118,0.28)" : "rgba(255,61,0,0.28)";
 
   return (
     <View style={styles.flex}>
+      <ScreenBackground tone={empty ? "neutral" : up ? "up" : "down"} />
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 120, paddingHorizontal: spacing.lg }}
-        refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={colors.brand} />}>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}>
         {trial && (
           <Pressable testID="trial-banner" style={styles.trialBanner} onPress={() => router.push("/billing")}>
             <Ionicons name="time-outline" size={20} color={colors.onBrand} />
@@ -62,11 +76,11 @@ export default function Dashboard() {
         )}
         <Animated.View style={styles.hero} entering={FadeIn.duration(500)}>
           <Image source={require("../../assets/images/dashboard-texture.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" />
-          <LinearGradient colors={["rgba(13,17,23,0.55)", "rgba(13,17,23,0.82)", "#0D1117"]} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={[heroTint, "rgba(13,17,23,0.84)", "#0D1117"]} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
           <View style={styles.header}>
             <View>
               <Text style={styles.hi}>Account Balance</Text>
-              <CountUpText testID="account-balance" style={styles.balance} value={stats?.account_balance || 0}
+              <CountUpText testID="account-balance" trigger={tick} style={styles.balance} value={stats?.account_balance || 0}
                 format={(n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
             </View>
             <View style={styles.dailyPill}>
@@ -90,7 +104,7 @@ export default function Dashboard() {
                 <Text style={styles.cardTitle}>Equity Curve</Text>
                 <Text style={[styles.totalPnl, { color: pnlColor(stats.total_pnl) }]}>{money(stats.total_pnl)}</Text>
               </View>
-              <EquityCurve data={shownCurve} width={width - spacing.lg * 2 - spacing.lg * 2} />
+              <EquityCurve data={shownCurve} replay={tick} width={width - spacing.lg * 2 - spacing.lg * 2} />
               <View style={styles.rangeRow}>
                 {(Object.keys(RANGES) as (keyof typeof RANGES)[]).map((r) => (
                   <Pressable key={r} testID={`range-${r}`} onPress={() => setRange(r)}
@@ -115,15 +129,15 @@ export default function Dashboard() {
                 <View style={styles.weeklyRow}>
                   <View>
                     <Text style={styles.weeklyLabel}>P&L</Text>
-                    <CountUpText value={weekly.this_week.pnl} format={money} style={[styles.weeklyVal, { color: pnlColor(weekly.this_week.pnl) }]} />
+                    <CountUpText value={weekly.this_week.pnl} trigger={tick} format={money} style={[styles.weeklyVal, { color: pnlColor(weekly.this_week.pnl) }]} />
                   </View>
                   <View>
                     <Text style={styles.weeklyLabel}>Win Rate</Text>
-                    <CountUpText value={weekly.this_week.win_rate} format={(n) => `${n.toFixed(1)}%`} style={styles.weeklyVal} />
+                    <CountUpText value={weekly.this_week.win_rate} trigger={tick} format={(n) => `${n.toFixed(1)}%`} style={styles.weeklyVal} />
                   </View>
                   <View>
                     <Text style={styles.weeklyLabel}>Trades</Text>
-                    <CountUpText value={weekly.this_week.trades} format={(n) => `${Math.round(n)}`} style={styles.weeklyVal} />
+                    <CountUpText value={weekly.this_week.trades} trigger={tick} format={(n) => `${Math.round(n)}`} style={styles.weeklyVal} />
                   </View>
                 </View>
                 <View style={styles.takeawayRow}>
@@ -135,10 +149,10 @@ export default function Dashboard() {
             )}
 
             <Animated.View entering={FadeInDown.duration(400).delay(180)} style={styles.grid}>
-              <StatCard testID="stat-winrate" label="Win Rate" icon="trophy" value={`${stats.win_rate}%`} countTo={stats.win_rate} format={(n) => `${n.toFixed(1)}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
-              <StatCard testID="stat-pf" label="Profit Factor" icon="trending-up" value={`${stats.profit_factor}`} countTo={stats.profit_factor} format={(n) => n.toFixed(2)} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
-              <StatCard testID="stat-winner" label="Avg Winner" icon="arrow-up-circle" value={money(stats.avg_winner)} countTo={stats.avg_winner} format={money} style={styles.half} valueColor={colors.success} />
-              <StatCard testID="stat-loser" label="Avg Loser" icon="arrow-down-circle" value={money(stats.avg_loser)} countTo={stats.avg_loser} format={money} style={styles.half} valueColor={colors.error} />
+              <StatCard testID="stat-winrate" label="Win Rate" icon="trophy" value={`${stats.win_rate}%`} countTo={stats.win_rate} trigger={tick} format={(n) => `${n.toFixed(1)}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
+              <StatCard testID="stat-pf" label="Profit Factor" icon="trending-up" value={`${stats.profit_factor}`} countTo={stats.profit_factor} trigger={tick} format={(n) => n.toFixed(2)} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
+              <StatCard testID="stat-winner" label="Avg Winner" icon="arrow-up-circle" value={money(stats.avg_winner)} countTo={stats.avg_winner} trigger={tick} format={money} style={styles.half} valueColor={colors.success} />
+              <StatCard testID="stat-loser" label="Avg Loser" icon="arrow-down-circle" value={money(stats.avg_loser)} countTo={stats.avg_loser} trigger={tick} format={money} style={styles.half} valueColor={colors.error} />
             </Animated.View>
 
             <View style={styles.infoRow}>

@@ -23,8 +23,8 @@ export function PressableScale({ children, style, onPressIn, onPressOut, scaleTo
   );
 }
 
-// Animates a number from 0 up to `value` on mount / when value changes.
-function useCountUp(value: number, duration = 1000) {
+// Animates a number from 0 up to `value`. Re-runs when `value` or `trigger` changes.
+function useCountUp(value: number, duration = 1000, trigger = 0) {
   const [display, setDisplay] = React.useState(0);
   React.useEffect(() => {
     let raf: number;
@@ -38,13 +38,13 @@ function useCountUp(value: number, duration = 1000) {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [value, duration]);
+  }, [value, duration, trigger]);
   return display;
 }
 
-export function CountUpText({ value, style, format, duration = 1000, testID, ...rest }:
-  { value: number; style?: StyleProp<TextStyle>; format: (n: number) => string; duration?: number; testID?: string } & TextProps) {
-  const n = useCountUp(value, duration);
+export function CountUpText({ value, style, format, duration = 1000, testID, trigger = 0, ...rest }:
+  { value: number; style?: StyleProp<TextStyle>; format: (n: number) => string; duration?: number; testID?: string; trigger?: number } & TextProps) {
+  const n = useCountUp(value, duration, trigger);
   return <Text testID={testID} style={style} {...rest}>{format(n)}</Text>;
 }
 

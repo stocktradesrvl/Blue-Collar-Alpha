@@ -10,6 +10,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/context/ToastContext";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
+import { ScreenBackground } from "@/src/components/ui";
 
 const PLANS = [
   { tier: "free", name: "Free", price: "$0", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
@@ -96,6 +97,7 @@ export default function Profile() {
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScreenBackground />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingTop: insets.top + spacing.md, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
         <View style={styles.userCard}>
           <View style={styles.avatar}><Ionicons name="person" size={28} color={colors.brand} /></View>
