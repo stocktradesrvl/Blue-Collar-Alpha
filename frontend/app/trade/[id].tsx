@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { useToast } from "@/src/context/ToastContext";
 import { colors, spacing, radius, font, fs, money, pnlColor, glow } from "@/src/theme";
 import { GradeBadge } from "@/src/components/ui";
+import { WinBurst } from "@/src/components/WinBurst";
 
 export default function TradeDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -17,9 +18,19 @@ export default function TradeDetail() {
   const toast = useToast();
   const [trade, setTrade] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [bigWin, setBigWin] = useState(false);
 
   const load = useCallback(async () => {
-    try { setTrade(await api.get(`/trades/${id}`)); } catch (e: any) { toast(e.message, "error"); }
+    try {
+      const t = await api.get(`/trades/${id}`);
+      setTrade(t);
+      try {
+        const s = await api.get("/dashboard/stats");
+        const avg = s?.avg_winner || 0;
+        const isBig = (t?.pnl || 0) > 0 && t?.taken !== false && (avg > 0 ? t.pnl >= avg * 1.5 : t.pnl >= 500);
+        if (isBig) setBigWin(true);
+      } catch {}
+    } catch (e: any) { toast(e.message, "error"); }
     setLoading(false);
   }, [id]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -138,6 +149,7 @@ export default function TradeDetail() {
           )}
         </View>
       </ScrollView>
+      <WinBurst visible={bigWin} />
     </View>
   );
 }
