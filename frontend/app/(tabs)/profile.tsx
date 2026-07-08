@@ -3,12 +3,13 @@ import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/context/ToastContext";
-import { colors, spacing, radius, font, fs } from "@/src/theme";
+import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 
 const PLANS = [
   { tier: "free", name: "Free", price: "$0", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
@@ -100,7 +101,18 @@ export default function Profile() {
           <View style={styles.avatar}><Ionicons name="person" size={28} color={colors.brand} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.email} numberOfLines={1}>{user?.email}</Text>
-            <View style={styles.tierBadge}><Text style={styles.tierBadgeTxt}>{(user?.subscription_tier || "free").toUpperCase()}</Text></View>
+            {(() => {
+              const t = user?.subscription_tier || "free";
+              const g = t === "premium" ? gradients.accent : t === "pro" ? gradients.brand : null;
+              return g ? (
+                <LinearGradient colors={g} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.tierBadge, styles.tierBadgeGlow, t === "premium" ? glow(colors.accent, 0.5) : glow(colors.brand, 0.5)]}>
+                  <Ionicons name={t === "premium" ? "star" : "ribbon"} size={12} color={t === "premium" ? colors.onAccent : colors.onBrand} />
+                  <Text style={[styles.tierBadgeTxt, { color: t === "premium" ? colors.onAccent : colors.onBrand }]}>{t.toUpperCase()}</Text>
+                </LinearGradient>
+              ) : (
+                <View style={styles.tierBadge}><Text style={styles.tierBadgeTxt}>{t.toUpperCase()}</Text></View>
+              );
+            })()}
           </View>
         </View>
 
@@ -185,10 +197,11 @@ export default function Profile() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.surface },
   userCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.xl },
-  avatar: { width: 56, height: 56, borderRadius: radius.pill, backgroundColor: colors.brandTint, alignItems: "center", justifyContent: "center" },
+  avatar: { width: 56, height: 56, borderRadius: radius.pill, backgroundColor: colors.brandTint, alignItems: "center", justifyContent: "center", ...glow(colors.brand, 0.35) },
   email: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.xl },
-  tierBadge: { alignSelf: "flex-start", backgroundColor: colors.brandTint, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2, marginTop: spacing.xs },
-  tierBadgeTxt: { color: colors.brand, fontFamily: font.text, fontSize: fs.sm, letterSpacing: 1 },
+  tierBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", backgroundColor: colors.surface3, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3, marginTop: spacing.xs },
+  tierBadgeGlow: {},
+  tierBadgeTxt: { color: colors.onSurface2, fontFamily: font.displayBold, fontSize: fs.sm, letterSpacing: 1 },
   referCard: { backgroundColor: colors.brandTint, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.brand, marginBottom: spacing.xl, gap: spacing.sm },
   referHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   referTitle: { color: colors.brand, fontFamily: font.displayBold, fontSize: fs.xl },
@@ -212,7 +225,7 @@ const styles = StyleSheet.create({
   billingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
   billingTxt: { flex: 1, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   plan: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },
-  planActive: { borderColor: colors.brand },
+  planActive: { borderColor: colors.accent, ...glow(colors.accent, 0.3) },
   planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: spacing.xs },
   planNameWrap: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexShrink: 1 },
   planName: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["2xl"] },

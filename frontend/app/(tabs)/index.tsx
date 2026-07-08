@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, useWindo
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { api } from "@/src/api";
-import { colors, spacing, radius, font, fs, money, pnlColor } from "@/src/theme";
-import { StatCard, EquityCurve } from "@/src/components/ui";
+import { colors, spacing, radius, font, fs, money, pnlColor, gradients, glow, cardShadow } from "@/src/theme";
+import { StatCard, EquityCurve, GradientCard } from "@/src/components/ui";
 
 const RANGES: Record<string, number> = { "1W": 8, "1M": 31, ALL: 9999 };
 
@@ -56,14 +58,18 @@ export default function Dashboard() {
             <Ionicons name="chevron-forward" size={18} color={colors.onBrand} />
           </Pressable>
         )}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.hi}>Account Balance</Text>
-            <Text testID="account-balance" style={styles.balance}>${(stats?.account_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
-          </View>
-          <View style={styles.dailyPill}>
-            <Text style={styles.dailyLabel}>Today</Text>
-            <Text style={[styles.dailyVal, { color: pnlColor(stats?.daily_pnl || 0) }]}>{money(stats?.daily_pnl || 0)}</Text>
+        <View style={styles.hero}>
+          <Image source={require("../../assets/images/dashboard-texture.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <LinearGradient colors={["rgba(13,17,23,0.55)", "rgba(13,17,23,0.82)", "#0D1117"]} style={StyleSheet.absoluteFill} />
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.hi}>Account Balance</Text>
+              <Text testID="account-balance" style={styles.balance}>${(stats?.account_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+            </View>
+            <View style={styles.dailyPill}>
+              <Text style={styles.dailyLabel}>Today</Text>
+              <Text style={[styles.dailyVal, { color: pnlColor(stats?.daily_pnl || 0) }]}>{money(stats?.daily_pnl || 0)}</Text>
+            </View>
           </View>
         </View>
 
@@ -75,7 +81,7 @@ export default function Dashboard() {
           </View>
         ) : (
           <>
-            <View style={styles.chartCard}>
+            <GradientCard accent={colors.brand} style={styles.chartCard}>
               <View style={styles.chartHead}>
                 <Text style={styles.cardTitle}>Equity Curve</Text>
                 <Text style={[styles.totalPnl, { color: pnlColor(stats.total_pnl) }]}>{money(stats.total_pnl)}</Text>
@@ -89,10 +95,10 @@ export default function Dashboard() {
                   </Pressable>
                 ))}
               </View>
-            </View>
+            </GradientCard>
 
             {weekly?.has_data && (
-              <View style={styles.weeklyCard}>
+              <GradientCard accent={colors.accent} style={styles.weeklyCard}>
                 <View style={styles.weeklyHead}>
                   <Text style={styles.weeklyTitle}>This Week</Text>
                   <View style={[styles.wrTrend, { backgroundColor: (weekly.wr_change >= 0 ? colors.success : colors.error) + "22" }]}>
@@ -115,17 +121,17 @@ export default function Dashboard() {
                   </View>
                 </View>
                 <View style={styles.takeawayRow}>
-                  <Ionicons name="sparkles" size={14} color={colors.brand} />
+                  <Ionicons name="sparkles" size={14} color={colors.accent} />
                   <Text style={styles.takeawayTxt}>{weekly.takeaway}</Text>
                 </View>
-              </View>
+              </GradientCard>
             )}
 
             <View style={styles.grid}>
-              <StatCard testID="stat-winrate" label="Win Rate" value={`${stats.win_rate}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
-              <StatCard testID="stat-pf" label="Profit Factor" value={`${stats.profit_factor}`} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
-              <StatCard testID="stat-winner" label="Avg Winner" value={money(stats.avg_winner)} style={styles.half} valueColor={colors.success} />
-              <StatCard testID="stat-loser" label="Avg Loser" value={money(stats.avg_loser)} style={styles.half} valueColor={colors.error} />
+              <StatCard testID="stat-winrate" label="Win Rate" icon="trophy" value={`${stats.win_rate}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
+              <StatCard testID="stat-pf" label="Profit Factor" icon="trending-up" value={`${stats.profit_factor}`} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
+              <StatCard testID="stat-winner" label="Avg Winner" icon="arrow-up-circle" value={money(stats.avg_winner)} style={styles.half} valueColor={colors.success} />
+              <StatCard testID="stat-loser" label="Avg Loser" icon="arrow-down-circle" value={money(stats.avg_loser)} style={styles.half} valueColor={colors.error} />
             </View>
 
             <View style={styles.infoRow}>
@@ -158,9 +164,11 @@ export default function Dashboard() {
         )}
       </ScrollView>
 
-      <Pressable testID="fab-upload" style={styles.fab} onPress={() => router.push("/upload")}>
-        <Ionicons name="camera" size={24} color={colors.onBrand} />
-        <Text style={styles.fabTxt}>Add Trade</Text>
+      <Pressable testID="fab-upload" style={styles.fabWrap} onPress={() => router.push("/upload")}>
+        <LinearGradient colors={gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
+          <Ionicons name="camera" size={24} color={colors.onAccent} />
+          <Text style={styles.fabTxt}>Add Trade</Text>
+        </LinearGradient>
       </Pressable>
     </View>
   );
@@ -169,25 +177,26 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.surface },
   center: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: spacing.lg },
-  trialBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.brand, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg },
+  hero: { marginHorizontal: -spacing.lg, marginTop: -(spacing.md), paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xl, marginBottom: spacing.lg, overflow: "hidden", borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  trialBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.brand, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg, ...glow(colors.brand, 0.4) },
   trialTxt: { flex: 1, color: colors.onBrand, fontFamily: font.display, fontSize: fs.base },
-  hi: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1 },
-  balance: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: 40 },
-  dailyPill: { backgroundColor: colors.surface2, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, alignItems: "flex-end" },
+  hi: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1.5 },
+  balance: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: 42, marginTop: 2 },
+  dailyPill: { backgroundColor: "rgba(22,27,34,0.7)", borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, alignItems: "flex-end" },
   dailyLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
   dailyVal: { fontFamily: font.displayBold, fontSize: fs.lg },
-  chartCard: { backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
+  chartCard: { marginBottom: spacing.md, ...cardShadow },
   chartHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
   cardTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   totalPnl: { fontFamily: font.displayBold, fontSize: fs.xl },
   rangeRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   rangeChip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xs, borderRadius: radius.pill, backgroundColor: colors.surface3 },
-  rangeChipActive: { backgroundColor: colors.brand },
+  rangeChipActive: { backgroundColor: colors.brand, ...glow(colors.brand, 0.5) },
   rangeTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
   rangeTxtActive: { color: colors.onBrand, fontFamily: font.text },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.md },
-  weeklyCard: { backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md, gap: spacing.md },
+  weeklyCard: { marginBottom: spacing.md, gap: spacing.md, ...cardShadow },
   weeklyHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   weeklyTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   wrTrend: { flexDirection: "row", alignItems: "center", gap: 2, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
@@ -209,6 +218,7 @@ const styles = StyleSheet.create({
   emptyBox: { alignItems: "center", padding: spacing.xxl, backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.xl, gap: spacing.sm },
   emptyTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl, marginTop: spacing.sm },
   emptySub: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, textAlign: "center" },
-  fab: { position: "absolute", bottom: 100, right: spacing.lg, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
+  fabWrap: { position: "absolute", bottom: 100, right: spacing.lg, borderRadius: radius.pill, ...glow(colors.accent, 0.6) },
+  fab: { flexDirection: "row", alignItems: "center", gap: spacing.sm, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
   fabTxt: { color: colors.onAccent, fontFamily: font.displayBold, fontSize: fs.lg },
 });

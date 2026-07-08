@@ -7,7 +7,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { api } from "@/src/api";
 import { useToast } from "@/src/context/ToastContext";
-import { colors, spacing, radius, font, fs, money, pnlColor } from "@/src/theme";
+import { colors, spacing, radius, font, fs, money, pnlColor, glow } from "@/src/theme";
 import { GradeBadge } from "@/src/components/ui";
 
 export default function TradeDetail() {
@@ -44,7 +44,7 @@ export default function TradeDetail() {
           {trade.image_base64 ? (
             <Image source={{ uri: `data:image/jpeg;base64,${trade.image_base64}` }} style={styles.heroImg} contentFit="cover" />
           ) : <View style={[styles.heroImg, { backgroundColor: colors.surface2 }]} />}
-          <LinearGradient colors={["rgba(18,18,18,0.7)", "transparent", "rgba(18,18,18,0.95)"]} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={["rgba(13,17,23,0.65)", "transparent", "rgba(13,17,23,0.97)"]} style={StyleSheet.absoluteFill} />
           <Pressable testID="back-detail" onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/journal")} style={[styles.back, { top: insets.top + spacing.sm }]}>
             <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
           </Pressable>
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   checkTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, flex: 1 },
   violation: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.sm },
   violationTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, flex: 1 },
-  aiCard: { flexDirection: "row", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.brand },
+  aiCard: { flexDirection: "row", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.brand, ...glow(colors.brand, 0.3) },
   aiTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, lineHeight: 22, flex: 1 },
   advCard: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg },
   advRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider },

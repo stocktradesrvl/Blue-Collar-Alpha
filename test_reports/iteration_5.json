@@ -1,0 +1,38 @@
+{
+  "summary": "Frontend-only visual restyle verification (iteration_5). All requested flows tested on mobile viewport 390x844 via Playwright as owner@trademind.ai / Owner1234. The 'spruce up' (vivid navy+orange, LinearGradient cards, hero background image, icon chips, glow shadows, orange active tab tint) is fully applied and NO interactive flow was broken. Verified: (1) Login screen renders with new gradient hero + textured background, submit works; (2) What's New modal appears on first launch and dismisses via testID 'whats-new-dismiss'; (3) Dashboard — textured hero balance card ($51,549.76), Equity Curve with gradient fill + range chips 1W/1M/ALL all switch, weekly recap card ($977.57 P&L / 63.6% WR / 11 trades), gradient StatCards (WIN RATE 61.1%, PROFIT FACTOR 1.76 with icon chips), orange 'Add Trade' FAB (with camera icon) navigates to /upload; (4) Journal — Executed/Missed tabs both switch (Missed shows only $0.00 idea trades), Grade filter chips A/B/C/D/F all filter the list, trade rows navigate to /trade/<id>; (5) Trade Detail — opens for SPY trade without crash, gradient badge (C, orange glow), stat cards render, 'Change' toggle-taken flips 'Executed trade' -> 'Missed / idea' (verified both directions via PUT /api/trades/{id}/taken 200); (6) Coach — sent message, Claude AI response returned (VWAP Bounce analysis), 3 follow-up chips rendered, gradient message bubbles visible; (7) Profile — orange PREMIUM badge with star icon, Refer & Earn card with share button + referral code '172C86', Subscription plans section, Manage Billing navigates to /billing; (8) Bottom tab bar — all 5 tabs (Dashboard/Journal/Coach/Strategy/Profile) navigate, active tab has orange tint. Zero pageerrors, zero console errors during full flow. Deprecation warnings persist (see react_native_issues) — same as iter4, not caused by restyle.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Billing screen (/billing)", "issues": ["Contradictory copy: header shows 'CURRENT PLAN: PREMIUM' but body text says 'You\\'re on the Free plan — no active billing. Upgrade from Profile to unlock Pro/Premium.' This is a pre-existing content bug unrelated to the visual restyle, but worth fixing — should read 'You\\'re on the Premium plan' for premium users. Reference: /app/frontend/app/billing.tsx"]}
+    ],
+    "react_native_issues": [
+      {"component": "StyleSheet shadow* props (multiple components)", "issue": "Console warning repeated on every page load: '\\\"shadow*\\\" style props are deprecated. Use \\\"boxShadow\\\".' Triggered by the new glow() helper in /app/frontend/src/theme.ts:36-38 (uses shadowColor/shadowOpacity/shadowRadius/shadowOffset) and cardShadow at :39. On React Native Web these should migrate to CSS `boxShadow` or use Platform.select. Non-blocking (styles still render) but pollutes console. Reference: /app/frontend/src/theme.ts:36-39"},
+      {"component": "Pressable / View pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents.' Same warning as iter4 — likely from an internal dependency or a component using the legacy prop. Non-blocking. Not caused by the visual restyle."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter4_review.py (regression suite, not re-run this iteration since request was frontend-only)"
+  ],
+  "action_items": [
+    "OPTIONAL: Migrate glow() and cardShadow in /app/frontend/src/theme.ts:36-39 from shadow* props to boxShadow (or Platform.select) to silence 'shadow* style props are deprecated' warnings on web.",
+    "MINOR CONTENT BUG (pre-existing, not restyle-related): Billing screen shows correct PREMIUM header but body text incorrectly says 'You\\'re on the Free plan'. Fix copy in /app/frontend/app/billing.tsx to reflect actual user tier.",
+    "No visual restyle regression — main agent's 'spruce up' PR is safe to ship."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/src/theme.ts:24-33 gradients tokens are well-organized (brand, accent, navyGlow, accentGlow, card, heroScrim, success, error) — clean naming, `as const` for LinearGradient tuple typing. Good.",
+    "/app/frontend/src/components/ui.tsx:19-26 GradientCard wraps children in LinearGradient with accent-tinted border — reusable and consistent across screens.",
+    "/app/frontend/src/components/ui.tsx:28-46 StatCard is now a LinearGradient itself with optional Ionicons chip in header (borderColor derived from valueColor+40 alpha). testID is preserved on the outer LinearGradient — testing still works (verified: stat-winrate, stat-pf, stat-winner, stat-loser all queryable).",
+    "/app/frontend/src/components/ui.tsx:48-82 EquityCurve retains the SvgGradient area fill under the polyline — visually rich, semantically unchanged (line + area + end-point circle+glow). Handles data.length < 2 edge case.",
+    "Trade Detail /app/frontend/app/trade/[id].tsx: toggle-taken interaction preserved; visual card wrappers upgraded but PUT /api/trades/{id}/taken still fires and UI reflects flip in both directions (verified end-to-end).",
+    "Coach /app/frontend/app/(tabs)/coach.tsx: message bubbles now use LinearGradient — coach-input, coach-send, and followup-<label> testIDs preserved (18 trade rows / 3 followup chips detected)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "not tested (frontend-only request)", "frontend": "100% — 8/8 requested flows verified" },
+  "seed_data_creation": "None. Only toggled a single trade's 'taken' flag twice (net-zero: ended in original 'Executed' state).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Visual restyle is fully passing. Testids to reuse: login-email/login-password/login-submit (login), whats-new-dismiss (modal), account-balance/range-{1W,1M,ALL}/stat-{winrate,pf,winner,loser}/fab-upload (dashboard), tab-executed/tab-missed/filter-{All,A,B,C,D,F}/trade-<uuid> (journal), toggle-taken (trade detail), coach-input/coach-send/followup-<label> (coach), manage-billing/share-referral/select-{free,pro,premium}/logout-btn (profile). Login flow: goto /login, wait for login-submit, fill+click. Owner already has premium tier + seeded 22 trades. Coach AI response takes ~10-15s.",
+  "rca_of_issue": "N/A — no bugs introduced by the visual restyle. Two console deprecation warnings persist (shadow* props from new glow()/cardShadow, and pointerEvents from an unknown dep). Both are pre-existing on React Native Web (0.79+ warns shadow* deprecation) and non-blocking — styles render correctly, no visual regressions."
+}

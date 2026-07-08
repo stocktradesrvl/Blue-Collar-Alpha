@@ -31,12 +31,18 @@ export default function Journal() {
 
   const renderItem = ({ item }: { item: any }) => {
     const win = (item.pnl || 0) >= 0;
+    const tint = win ? colors.success : colors.error;
     return (
-      <Pressable testID={`trade-${item.id}`} style={styles.row} onPress={() => router.push(`/trade/${item.id}`)}>
-        <View style={[styles.strip, { backgroundColor: win ? colors.success : colors.error }]} />
+      <Pressable testID={`trade-${item.id}`} style={[styles.row, { borderColor: tint + "33" }]} onPress={() => router.push(`/trade/${item.id}`)}>
+        <View style={[styles.strip, { backgroundColor: tint }]} />
         <View style={styles.rowMain}>
           <View style={styles.rowTop}>
-            <Text style={styles.symbol}>{item.symbol}</Text>
+            <View style={styles.symbolWrap}>
+              <View style={[styles.assetIcon, { backgroundColor: tint + "1F" }]}>
+                <Ionicons name={item.asset_type === "option" ? "options" : item.asset_type === "future" ? "cube" : "trending-up"} size={14} color={tint} />
+              </View>
+              <Text style={styles.symbol}>{item.symbol}</Text>
+            </View>
             <Text style={[styles.pnl, { color: pnlColor(item.pnl) }]}>{money(item.pnl || 0)}</Text>
           </View>
           <View style={styles.rowBottom}>
@@ -96,20 +102,22 @@ const styles = StyleSheet.create({
   title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["3xl"], marginBottom: spacing.md },
   segment: { flexDirection: "row", backgroundColor: colors.surface2, borderRadius: radius.md, padding: 3, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
   segBtn: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.sm, alignItems: "center" },
-  segActive: { backgroundColor: colors.brand },
+  segActive: { backgroundColor: colors.accent },
   segTxt: { color: colors.onSurface2, fontFamily: font.display, fontSize: fs.base },
-  segTxtActive: { color: colors.onBrand },
+  segTxtActive: { color: colors.onAccent },
   chips: { gap: spacing.sm, paddingRight: spacing.lg },
   chip: { height: 36, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, justifyContent: "center", flexShrink: 0 },
-  chipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   chipTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
-  chipTxtActive: { color: colors.onBrand },
+  chipTxtActive: { color: colors.onAccent },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
   emptyTxt: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.lg },
   row: { flexDirection: "row", backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
-  strip: { width: 4 },
+  strip: { width: 5 },
   rowMain: { flex: 1, padding: spacing.lg, gap: spacing.sm },
   rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  symbolWrap: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  assetIcon: { width: 26, height: 26, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
   symbol: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
   pnl: { fontFamily: font.displayBold, fontSize: fs.xl },
   rowBottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

@@ -3,9 +3,10 @@ import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoid
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
-import { colors, spacing, radius, font, fs } from "@/src/theme";
+import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 
 const SUGGESTIONS = ["Why am I losing money?", "What's my best setup?", "Should I stop after two losses?", "What mistakes cost me the most?"];
 const FOLLOWUPS = [
@@ -61,7 +62,7 @@ export default function Coach() {
     return (
       <View style={styles.flex}>
         <View style={[styles.lock, { paddingTop: insets.top + 80 }]}>
-          <View style={styles.lockIcon}><Ionicons name="sparkles" size={40} color={colors.brand} /></View>
+          <View style={styles.lockIcon}><Ionicons name="sparkles" size={40} color={colors.accent} /></View>
           <Text style={styles.lockTitle}>AI Coach Chat</Text>
           <Text style={styles.lockSub}>Ask questions about your own trading data. Available on the Premium plan.</Text>
           <Pressable testID="upgrade-coach" style={styles.upgradeBtn} onPress={() => router.push("/(tabs)/profile")}>
@@ -92,10 +93,16 @@ export default function Coach() {
           </View>
         )}
         {messages.map((m, i) => (
-          <View key={i} style={[styles.bubble, m.role === "user" ? styles.user : styles.ai]}>
-            {m.role === "assistant" && <Ionicons name="sparkles" size={14} color={colors.brand} style={{ marginBottom: 4 }} />}
-            <Text style={[styles.msgTxt, m.role === "user" && { color: colors.onBrand }]}>{m.content}</Text>
-          </View>
+          m.role === "user" ? (
+            <LinearGradient key={i} colors={gradients.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.user]}>
+              <Text style={[styles.msgTxt, { color: colors.onBrand }]}>{m.content}</Text>
+            </LinearGradient>
+          ) : (
+            <LinearGradient key={i} colors={["rgba(46,118,232,0.16)", "rgba(22,27,34,0.95)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.ai]}>
+              <Ionicons name="sparkles" size={14} color={colors.accent} style={{ marginBottom: 4 }} />
+              <Text style={styles.msgTxt}>{m.content}</Text>
+            </LinearGradient>
+          )
         ))}
         {busy && <View style={[styles.bubble, styles.ai]}><ActivityIndicator color={colors.brand} /></View>}
         {!busy && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
@@ -114,8 +121,10 @@ export default function Coach() {
       <View style={[styles.inputBar, { paddingBottom: insets.bottom || spacing.md }]}>
         <TextInput testID="coach-input" style={styles.input} placeholder="Ask your coach..." placeholderTextColor={colors.onSurface3}
           value={input} onChangeText={setInput} multiline />
-        <Pressable testID="coach-send" style={styles.sendBtn} onPress={() => send(input)} disabled={busy}>
-          <Ionicons name="arrow-up" size={22} color={colors.onBrand} />
+        <Pressable testID="coach-send" onPress={() => send(input)} disabled={busy}>
+          <LinearGradient colors={gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.sendBtn}>
+            <Ionicons name="arrow-up" size={22} color={colors.onAccent} />
+          </LinearGradient>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -134,18 +143,18 @@ const styles = StyleSheet.create({
   sugTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.base },
   bubble: { maxWidth: "85%", borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md },
   user: { backgroundColor: colors.brand, alignSelf: "flex-end", borderBottomRightRadius: radius.sm },
-  ai: { backgroundColor: colors.surface2, alignSelf: "flex-start", borderWidth: 1, borderColor: colors.border, borderBottomLeftRadius: radius.sm },
+  ai: { backgroundColor: colors.surface2, alignSelf: "flex-start", borderWidth: 1, borderColor: colors.borderStrong, borderBottomLeftRadius: radius.sm },
   msgTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, lineHeight: 22 },
   followWrap: { marginTop: spacing.sm, marginBottom: spacing.md },
   followLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: spacing.sm },
   followRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  followChip: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.brand, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  followTxt: { color: colors.brand, fontFamily: font.text, fontSize: fs.base },
+  followChip: { backgroundColor: colors.accentTint, borderWidth: 1, borderColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  followTxt: { color: colors.accent, fontFamily: font.text, fontSize: fs.base },
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.surface2 },
   input: { flex: 1, maxHeight: 120, backgroundColor: colors.surface3, borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg },
-  sendBtn: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+  sendBtn: { width: 44, height: 44, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", ...glow(colors.accent, 0.5) },
   lock: { flex: 1, alignItems: "center", paddingHorizontal: spacing.xl, gap: spacing.md },
-  lockIcon: { width: 80, height: 80, borderRadius: radius.lg, backgroundColor: colors.brandTint, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
+  lockIcon: { width: 80, height: 80, borderRadius: radius.lg, backgroundColor: colors.accentTint, alignItems: "center", justifyContent: "center", marginBottom: spacing.md, ...glow(colors.accent, 0.4) },
   lockTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["2xl"] },
   lockSub: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.lg, textAlign: "center" },
   upgradeBtn: { backgroundColor: colors.brand, borderRadius: radius.md, paddingHorizontal: spacing.xxl, paddingVertical: spacing.lg, marginTop: spacing.lg },
