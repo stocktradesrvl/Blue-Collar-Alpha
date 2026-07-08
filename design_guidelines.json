@@ -1,49 +1,48 @@
 {
-  "app_name": "TradeMind AI",
-  "personality": "7 Dark-First Utility DARK",
-  "personality_one_liner": "A sharp, live operational surface built for fast scanning and zero-friction insights, powered by an AI coach that keeps the trader accountable.",
+  "app_name": "TradeMind AI (Blue Collar Strategy Guide)",
+  "personality": "7 Dark-First Utility structure with 6 Glass / Luxe vivid gradient surfaces",
+  "personality_one_liner": "A high-performance, dark-mode command center infused with cinematic lighting, glowing navy gradients, and vibrant orange accents to feel premium and alive.",
   "color": {
-    "surface": "#121212",
-    "onSurface": "#FFFFFF",
-    "surfaceSecondary": "#1E1E1E",
-    "onSurfaceSecondary": "#A3A3A3",
-    "surfaceTertiary": "#2C2C2C",
-    "onSurfaceTertiary": "#808080",
-    "surfaceInverse": "#F5F5F5",
-    "onSurfaceInverse": "#121212",
-    "brand": "#FFB74D",
-    "brandPrimary": "#FF9800",
-    "onBrandPrimary": "#000000",
-    "brandSecondary": "#F57C00",
-    "onBrandSecondary": "#000000",
-    "brandTertiary": "rgba(255,183,77,0.12)",
-    "onBrandTertiary": "#FFB74D",
+    "surface": "#0D1117",
+    "onSurface": "#F0F6FC",
+    "surfaceSecondary": "#161B22",
+    "onSurfaceSecondary": "#C9D1D9",
+    "surfaceTertiary": "#21262D",
+    "onSurfaceTertiary": "#8B949E",
+    "surfaceInverse": "#F0F6FC",
+    "onSurfaceInverse": "#0D1117",
+    "brand": "#0A4DA0",
+    "brandPrimary": "#1E5FBF",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#0A4DA0",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#FF7F00",
+    "onBrandTertiary": "#FFFFFF",
     "success": "#00E676",
-    "onSuccess": "#000000",
+    "onSuccess": "#00331A",
+    "warning": "#FFB300",
+    "onWarning": "#332400",
     "error": "#FF3D00",
-    "onError": "#FFFFFF",
-    "warning": "#FFC400",
-    "onWarning": "#000000",
-    "info": "#BDBDBD",
-    "onInfo": "#000000",
-    "border": "#333333",
-    "borderStrong": "#4D4D4D",
-    "divider": "#292929"
+    "onError": "#330C00",
+    "info": "#1E5FBF",
+    "onInfo": "#FFFFFF",
+    "border": "#30363D",
+    "borderStrong": "#1E5FBF",
+    "divider": "#21262D"
   },
   "typography": {
     "displayFontFamily": "Rajdhani",
-    "textFontFamily": "DM Sans",
+    "textFontFamily": "DMSans",
     "scale": {
       "sm": 12,
       "base": 14,
       "lg": 16,
       "xl": 20,
-      "2xl": 24,
-      "3xl": 32
+      "2xl": 24
     }
   },
   "spacing": {
-    "rule": "Handle spacing correctly, avoid extra spaces. Keep padding/margins subtle and functional. Tight spacing (sm/md) preferred for dense data blocks.",
+    "rule": "Generous padding around structural containers, tight spacing inside data groups. Ensure minimum 56pt height for list rows. Do not leave trailing empty space in grids.",
     "xs": 4,
     "sm": 8,
     "md": 12,
@@ -58,24 +57,26 @@
     "lg": 20,
     "pill": 999
   },
-  "shadow_tier": 0,
+  "shadow_tier": "2",
   "navigation": "bottom_tabs",
   "icon_set": "Ionicons",
   "glassmorphism": {
-    "enabled": false,
+    "enabled": true,
     "do's": [
-      "Use solid surfaceSecondary and surfaceTertiary to maintain high-contrast readability.",
-      "Use dividers over shadows to separate dense information."
+      "Apply glass effects to the bottom tab bar.",
+      "Use blur layers on sticky headers over scrolling content.",
+      "Use vivid expo-linear-gradient overlays paired with expo-blur on featured hero cards (e.g. Account Balance)."
     ],
     "dont's": [
-      "No blur or glassmorphism on cards, lists, or metrics.",
-      "No drop shadows; rely on color lightness differences."
+      "Do not apply glass to dense list items or form inputs.",
+      "Do not blur background text to the point of muddying the screen.",
+      "Do not use generic unstyled Alert or Modals."
     ]
   },
   "platform_libraries": {
     "glass": {
-      "ios": "solid surfaceSecondary",
-      "android": "solid surfaceSecondary",
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
       "low_end_android_fallback": "solid surfaceSecondary"
     },
     "image": "expo-image",
@@ -87,80 +88,74 @@
   "screens": [
     {
       "name": "Dashboard",
-      "purpose": "Command center for the trader to view real-time equity curve, P&L stats, and access quick actions.",
+      "purpose": "A commanding overview of account health, equity curve, and recent performance metrics.",
       "states": {
-        "loading": "Skeleton UI for chart and stat cards.",
-        "empty": "No trades logged yet. Display 'empty_dashboard' image with 'Upload your first trade' CTA.",
-        "error": "Failed to load dashboard data. Retry button."
+        "loading": "Centered brand-colored spinner with skeleton shapes for the chart and stat cards.",
+        "empty": "No trades yet. Shows an abstract glowing chart illustration with a prominent 'Log First Trade' CTA.",
+        "error": "Failed to load data. Readable error text with a retry button."
       },
-      "layout": "Top section: Large Account Balance & Daily P&L (color-coded). Middle section: Interactive Equity Curve Chart with 1D/1W/1M segmented controls above it. Bottom section: 2-column grid for Key Metrics (Win Rate, Profit Factor, Best Setup). Floating action button (FAB) in brand Primary for 'Upload Trade'."
-    },
-    {
-      "name": "AI Coach",
-      "purpose": "Conversational interface delivering daily session reports, strategy critiques, and emotional feedback.",
-      "states": {
-        "loading": "Shimmer effect on chat bubbles.",
-        "empty": "AI greeting asking 'How was today's session?'",
-        "error": "Could not connect to AI. Retry."
-      },
-      "layout": "Full-height scrollable chat layout. AI insight cards injected into the chat flow featuring horizontal stat bars (e.g., 'Discipline Score'). Bottom pinned input field. Use 'ai_coach_avatar' for AI's messages."
+      "layout": "Use a large Hero Card at the top displaying Account Balance and a line chart. The Hero Card should use 'dashboard_texture' as a background image overlaid with a heavy vertical linear gradient scrim (transparent to #0D1117 at bottom). Below it, place the 'Weekly Recap' card and a 2-column grid for 'Win Rate', 'Profit Factor', etc. Add a floating 'Add Trade' FAB in #FF7F00 (brandTertiary) positioned above the bottom tab bar."
     },
     {
       "name": "Trade Journal",
-      "purpose": "Filterable archive of all trades grouped by strategy, date, and performance.",
+      "purpose": "A scannable, filterable list of all executed and missed trades.",
       "states": {
-        "loading": "List skeleton rows.",
-        "empty": "No trades found matching filters.",
-        "error": "Error fetching journal. Retry."
+        "loading": "List skeletons.",
+        "empty": "Empty state illustration of a notebook/journal, instructing user to log a trade.",
+        "error": "Error fetching trades with a retry CTA."
       },
-      "layout": "Sticky top bar with horizontal scrollable chips for filtering (Strategy, A-F Grade). Vertical list of trades. Each row: Ticker/Asset left-aligned, right-aligned P&L (success/error color), and an A-F grade badge. A subtle left-border color strip indicates win/loss."
+      "layout": "Sticky header containing segmented controls (Executed vs Missed) and horizontal scrollable 'Grade A-F' filter chips. Trade list cards have symbol in Rajdhani, P&L highlighted in success/error colors, and a left-aligned border strip indicating win (green) or loss (red)."
     },
     {
       "name": "Trade Detail",
-      "purpose": "Deep dive into a specific trade with chart screenshot analysis and rule checks.",
+      "purpose": "Deep dive into a specific trade with screenshot analysis and AI coaching insights.",
       "states": {
-        "loading": "Skeleton over image hero and stats.",
-        "empty": "N/A - detailed view.",
-        "error": "Failed to load trade details."
+        "loading": "Skeleton for hero image and metric grid.",
+        "empty": "N/A - Screen only accessed via a valid trade.",
+        "error": "Error message with back navigation."
       },
-      "layout": "Hero image at top (uploaded chart screenshot) with vertical top-to-bottom gradient scrim (transparent to surface). Trade grade and P&L positioned at bottom of image. Below image: Rule Violations checklist (red icons for violated rules), and an AI Summary paragraph. "
+      "layout": "Top 30% is a full-bleed Hero screenshot image with a MANDATORY gradient scrim (transparent to #0D1117) anchoring the P&L and Symbol text. Below, display a metrics grid (Entry, Exit, Qty). The 'AI Coach Insight' card should feature a subtle #1E5FBF (navy) outer glow or border to distinguish it as an AI generation."
     },
     {
-      "name": "Strategy Builder",
-      "purpose": "Form to define trading rules so the AI can check for violations post-trade.",
+      "name": "AI Coach",
+      "purpose": "An interactive chat interface for users to ask about their trading habits and rules.",
       "states": {
-        "loading": "N/A",
-        "empty": "N/A",
-        "error": "Validation errors on inputs."
+        "loading": "Typing indicator bubbles.",
+        "empty": "Welcome message with suggested prompt chips.",
+        "error": "Failed to send message, tap to retry."
       },
-      "layout": "Single-column stacked form. Fields: Strategy Name, Risk %, and a dynamic list of 'Rules' (e.g., 'No trading on Fridays'). Bottom sticky CTA: 'Save Strategy' spanning full width."
+      "layout": "Standard chat interface. User messages use surfaceTertiary background. AI messages use a subtle #0A4DA0 gradient background. Place actionable follow-up prompt chips horizontally above the input field."
+    },
+    {
+      "name": "Profile",
+      "purpose": "User settings, subscription tier status, and referral rewards.",
+      "states": {
+        "loading": "Profile skeletons.",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Display a prominent Subscription Tier badge at the top. If Premium, give the badge a vibrant #FF7F00 glowing gradient background. Follow with standard list rows for settings, billing, and referral code."
     }
   ],
   "images": {
-    "hero_chart_bg": {
-      "url": "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmslMjBmaW5hbmNpYWwlMjBjaGFydCUyMHN0b2NrJTIwbWFya2V0JTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODMyNjgyMDF8MA&ixlib=rb-4.1.0&q=85",
-      "alt": "Abstract dark financial chart"
+    "dashboard_texture": {
+      "url": "https://images.unsplash.com/photo-1759159347914-88541fa4bd14?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwtGVjaCUyMGRhc2hib2FyZCUyMGFic3RyYWN0JTIwdGV4dHVyZXxlbnwwfHx8fDE3ODIyNDMzODR8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark geometric textured background for dashboard hero"
     },
-    "trade_screenshot_example": {
-      "url": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwxfHxmaW5hbmNpYWwlMjBjaGFydCUyMGNhbmRsZXN0aWNrJTIwYW5hbHlzaXMlMjBzY3JlZW5zaG90fGVufDB8fHx8MTc4MzI2ODIwMXww&ixlib=rb-4.1.0&q=85",
-      "alt": "Candlestick chart analysis screenshot"
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1655841439659-0afc60676b70?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMG5lb24lMjAzZCUyMGJhY2tncm91bmQlMjBkYXJrJTIwYmx1ZXxlbnwwfHx8fDE3ODE4NDQ1Nzl8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Abstract dark navy glowing waves background"
     },
-    "empty_dashboard": {
-      "url": "https://images.unsplash.com/photo-1650661926447-9efb2610f64c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwxfHxlbXB0eSUyMG5vdGVib29rJTIwZGVzayUyMGRhcmt8ZW58MHx8fHwxNzgzMjY4MjAxfDA&ixlib=rb-4.1.0&q=85",
-      "alt": "Empty notebook in dark lighting"
-    },
-    "ai_coach_avatar": {
-      "url": "https://images.unsplash.com/photo-1677212004257-103cfa6b59d0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwxfHxhaSUyMHJvYm90JTIwYnJhaW4lMjBjaXJjdWl0JTIwZGFyayUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzgzMjY4MjAxfDA&ixlib=rb-4.1.0&q=85",
-      "alt": "AI robotic brain circuit in dark mode"
+    "trade_chart_example": {
+      "url": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZmluYW5jZSUyMHN0b2NrJTIwbWFya2V0JTIwY2hhcnQlMjBhZXN0aGV0aWN8ZW58MHx8fHwxNzgyNjEzNjA5fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark candlestick trading chart background"
     }
   },
   "instructions_to_main_agent": [
-    "Strictly follow the Dark-First Utility guidelines: Do not use glassmorphism, stick to solid surface dividers to segregate dense metrics.",
-    "Implement Bebas Neue or Rajdhani for large financial numbers, ensuring numbers look sharp and impactful.",
-    "Ensure 'success' (Green) and 'error' (Red) are the only colors used for P&L semantics. Do not use blue for generic accents; stick to the Amber 'brand' token for UI actions and premium AI coach hints.",
-    "For the Trade Detail screen, the uploaded trade screenshot MUST have a vertical gradient scrim overlay to guarantee text contrast at the bottom.",
-    "Make the 'Upload Trade' action highly accessible—either a persistent FAB or a dedicated center tab in the bottom bar.",
-    "AI coach chat should feel conversational but data-rich; inject small 'Insight Cards' (e.g. Rule Violations, Mindset Score) directly into the chat flow.",
-    "Always maintain a strict WCAG AA contrast ratio on the dark surfaces, using 'onSurface' and 'onSurfaceSecondary' intelligently."
+    "Vivid Glowing Cards: To 'spruce it up', wrap key statistic cards and the AI Coach card in a view with a 1px borderStrong (#1E5FBF or #FF7F00) and apply a subtle shadow, OR use an expo-linear-gradient as the card's background (e.g. fading from #1E5FBF at 20% opacity to transparent).",
+    "Dashboard Backgrounds: Implement the 'dashboard_texture' image as the background for the main Account Balance / Equity hero card. You MUST layer a vertical expo-linear-gradient scrim over it to ensure text readability.",
+    "Typography Hierarchy: Use Rajdhani for all numeric data (Account balances, P&L, stats, grades) and large display headings. Use DM Sans for all body text, labels, and AI chat bubbles. Keep font weights at 400 or 500 max.",
+    "Tab Bar and Overlays: Apply glassmorphism (expo-blur) to the bottom tab bar. Use the vibrant orange (#FF7F00) for the active tab icon/indicator to make it pop against the dark theme.",
+    "Color Usage: Do not use pure #121212 or #000000 for backgrounds; stick to the provided #0D1117 (dark slate/navy). Use #FF7F00 exclusively for primary calls to action (FAB, Premium badges) to draw the eye."
   ]
 }
