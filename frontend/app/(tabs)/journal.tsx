@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, ActivityIndica
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs, money, pnlColor } from "@/src/theme";
 import { GradeBadge } from "@/src/components/ui";
+import { PressableScale } from "@/src/components/anim";
 
 const GRADES = ["All", "A", "B", "C", "D", "F"];
 
@@ -29,11 +31,12 @@ export default function Journal() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const renderItem = ({ item }: { item: any }) => {
+  const renderItem = ({ item, index }: { item: any; index: number }) => {
     const win = (item.pnl || 0) >= 0;
     const tint = win ? colors.success : colors.error;
     return (
-      <Pressable testID={`trade-${item.id}`} style={[styles.row, { borderColor: tint + "33" }]} onPress={() => router.push(`/trade/${item.id}`)}>
+      <Animated.View entering={FadeInDown.duration(350).delay(Math.min(index, 8) * 45)}>
+      <PressableScale testID={`trade-${item.id}`} style={[styles.row, { borderColor: tint + "33" }]} onPress={() => router.push(`/trade/${item.id}`)}>
         <View style={[styles.strip, { backgroundColor: tint }]} />
         <View style={styles.rowMain}>
           <View style={styles.rowTop}>
@@ -50,7 +53,8 @@ export default function Journal() {
             <GradeBadge grade={item.setup_grade || "C"} size={26} />
           </View>
         </View>
-      </Pressable>
+      </PressableScale>
+      </Animated.View>
     );
   };
 

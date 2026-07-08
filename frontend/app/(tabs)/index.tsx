@@ -5,9 +5,11 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs, money, pnlColor, gradients, glow, cardShadow } from "@/src/theme";
 import { StatCard, EquityCurve, GradientCard } from "@/src/components/ui";
+import { PressableScale } from "@/src/components/anim";
 
 const RANGES: Record<string, number> = { "1W": 8, "1M": 31, ALL: 9999 };
 
@@ -58,7 +60,7 @@ export default function Dashboard() {
             <Ionicons name="chevron-forward" size={18} color={colors.onBrand} />
           </Pressable>
         )}
-        <View style={styles.hero}>
+        <Animated.View style={styles.hero} entering={FadeIn.duration(500)}>
           <Image source={require("../../assets/images/dashboard-texture.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" />
           <LinearGradient colors={["rgba(13,17,23,0.55)", "rgba(13,17,23,0.82)", "#0D1117"]} style={StyleSheet.absoluteFill} />
           <View style={styles.header}>
@@ -71,7 +73,7 @@ export default function Dashboard() {
               <Text style={[styles.dailyVal, { color: pnlColor(stats?.daily_pnl || 0) }]}>{money(stats?.daily_pnl || 0)}</Text>
             </View>
           </View>
-        </View>
+        </Animated.View>
 
         {empty ? (
           <View style={styles.emptyBox}>
@@ -81,6 +83,7 @@ export default function Dashboard() {
           </View>
         ) : (
           <>
+            <Animated.View entering={FadeInDown.duration(400).delay(50)}>
             <GradientCard accent={colors.brand} style={styles.chartCard}>
               <View style={styles.chartHead}>
                 <Text style={styles.cardTitle}>Equity Curve</Text>
@@ -96,8 +99,10 @@ export default function Dashboard() {
                 ))}
               </View>
             </GradientCard>
+            </Animated.View>
 
             {weekly?.has_data && (
+              <Animated.View entering={FadeInDown.duration(400).delay(120)}>
               <GradientCard accent={colors.accent} style={styles.weeklyCard}>
                 <View style={styles.weeklyHead}>
                   <Text style={styles.weeklyTitle}>This Week</Text>
@@ -125,14 +130,15 @@ export default function Dashboard() {
                   <Text style={styles.takeawayTxt}>{weekly.takeaway}</Text>
                 </View>
               </GradientCard>
+              </Animated.View>
             )}
 
-            <View style={styles.grid}>
+            <Animated.View entering={FadeInDown.duration(400).delay(180)} style={styles.grid}>
               <StatCard testID="stat-winrate" label="Win Rate" icon="trophy" value={`${stats.win_rate}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
               <StatCard testID="stat-pf" label="Profit Factor" icon="trending-up" value={`${stats.profit_factor}`} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
               <StatCard testID="stat-winner" label="Avg Winner" icon="arrow-up-circle" value={money(stats.avg_winner)} style={styles.half} valueColor={colors.success} />
               <StatCard testID="stat-loser" label="Avg Loser" icon="arrow-down-circle" value={money(stats.avg_loser)} style={styles.half} valueColor={colors.error} />
-            </View>
+            </Animated.View>
 
             <View style={styles.infoRow}>
               <View style={styles.infoCard}>
@@ -164,12 +170,12 @@ export default function Dashboard() {
         )}
       </ScrollView>
 
-      <Pressable testID="fab-upload" style={styles.fabWrap} onPress={() => router.push("/upload")}>
+      <PressableScale testID="fab-upload" style={styles.fabWrap} onPress={() => router.push("/upload")}>
         <LinearGradient colors={gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
           <Ionicons name="camera" size={24} color={colors.onAccent} />
           <Text style={styles.fabTxt}>Add Trade</Text>
         </LinearGradient>
-      </Pressable>
+      </PressableScale>
     </View>
   );
 }
