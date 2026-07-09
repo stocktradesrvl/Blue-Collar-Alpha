@@ -1,0 +1,38 @@
+{
+  "summary": "Frontend-only regression test (iteration_6) verifying the visual overhaul applied to Strategy / Upload (Add Trade) / Pre-Trade Grader screens. All 6 requested flows PASS on mobile viewport 390x844 as owner@trademind.ai. No red screens, no pageerrors, no functional regressions. Verified: (1) Login submits, What's New (whats-new-dismiss) + Daily Quote (daily-quote-dismiss) modals dismiss cleanly. (2) Strategy tab (/strategy) renders with ScreenBackground + orange gradient 'New Strategy' FAB glow; found 20 preset chips + 3 seeded strategies. Preset tap opens editor prefilled ('Opening Range Breakout'); new-strategy -> filled strategy-name/strategy-risk/rule-0/add-rule/rule-1 -> save-strategy persisted (list grew 3->4, name visible after reload). Edit (strategy-<id>) loads prefilled form. Delete (del-strategy-<id>) removes from list (verified 'still visible: False'). (3) Upload (fab-upload) opens; pick-camera + pick-gallery boxes with brand glow present; analyze-btn correctly disabled (aria-disabled=true) with no image — click didn't navigate away; taken-yes/taken-no toggle both directions; 3 strat-<id> chips toggle to accent (orange). (4) Pre-Trade Grader — reachable via pretrade-btn from dashboard (not locked for premium); pt-camera/pt-gallery pickers with brand-glowed dashed boxes; 3 pt-strat-<id> chips toggle. Note: hard URL navigation to /pretrade redirects to / (auth-restore quirk in Expo Router, pre-existing, not a restyle bug) — internal link via pretrade-btn works. (5) Dashboard — account-balance $51,549.76 renders, all 4 tabs+profile navigate. Same two console deprecation warnings persist from iter5 (shadow* + pointerEvents) — pre-existing, NOT introduced by this restyle.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "glow() helper (shadow* props)", "issue": "Console warning still repeats on every page load: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' The new visual overhaul heavily uses glow() (FAB, gradient CTAs, pickers, taken toggles, strategy cards). Non-blocking — styles render — but pollutes console on RN Web. Reference: /app/frontend/src/theme.ts (glow() using shadowColor/shadowOpacity/shadowRadius/shadowOffset)."},
+      {"component": "Pressable / View pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents.' Same as iter4/iter5 — not caused by the restyle. Non-blocking."},
+      {"component": "react-native-reanimated on web", "issue": "Console warning: 'Animated: useNativeDriver is not supported because the native animated module is missing. Falling back to JS-based animation.' Triggered by the new PressableScale / FadeInDown entrance animations added in the restyle. Non-blocking on Expo Web, but recommend guarding with Platform.OS !== 'web' for the FadeInDown wrapper if the warning noise is undesired."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter4_review.py (regression backend suite — not re-run this iteration; request was frontend-only)"
+  ],
+  "action_items": [
+    "OPTIONAL — Silence 'shadow* deprecated' warning: migrate glow()/cardShadow in /app/frontend/src/theme.ts to Platform.select({ web: { boxShadow: '...' }, default: { shadowColor, shadowOpacity, shadowRadius, shadowOffset } }). This restyle amplified the warning frequency because glow() is now applied to many more surfaces.",
+    "OPTIONAL — Suppress useNativeDriver warning on web by conditionally wrapping FadeInDown entrance animations with Platform.OS !== 'web'.",
+    "NO functional fixes required — visual overhaul of Strategy / Upload / Pre-Trade Grader is safe to ship."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/src/components/ui.tsx:12-28 new GradientButton is clean, reusable, exposes testID/icon/busy/disabled/grad/textColor — good abstraction. Uses PressableScale + LinearGradient + glow() from tail color. Note: not yet consumed by upload.tsx/pretrade.tsx (they still hand-roll their analyze/run buttons with the same pattern — consider migrating for DRY).",
+    "/app/frontend/src/components/ui.tsx:36-47 ScreenBackground is a nice ambient layer (hero-bg.jpg 14% + tonal gradient scrim). pointerEvents='none' correctly set so it doesn't intercept taps. Tone param (neutral/up/down) not currently used by Strategy/Upload/Pretrade — could tone Dashboard scrim based on daily P&L sign.",
+    "/app/frontend/app/(tabs)/strategy.tsx:114-125 preserves testID='strategy-<id>' on PressableScale wrapper — Playwright query still works (verified list of 3 -> 4 -> back to 3 after delete). Good.",
+    "/app/frontend/app/upload.tsx:106 analyze-btn correctly disables when !image (aria-disabled=true in web output) AND uses styles.disabled opacity 0.4 — verified click while disabled does not fire the analyze() call (still on /upload). Gating works.",
+    "/app/frontend/app/pretrade.tsx:24 locked = user?.subscription_tier === 'free' — verified premium owner sees the picker UI, not the lock upsell.",
+    "MINOR: upload.tsx uses testID 'pick-camera'/'pick-gallery' but pretrade.tsx uses 'pt-camera'/'pt-gallery'. This is intentional (distinct screens) and matches the review_request. No action needed.",
+    "MINOR: strategy.tsx:154 saveBtn is a plain accent-colored Pressable rather than the new shared GradientButton — inconsistent with the FAB which uses LinearGradient. Consider replacing with GradientButton for a fully gradient CTA feel across the app."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "not tested (frontend-only request)", "frontend": "100% — 6/6 requested flows verified" },
+  "seed_data_creation": "Created + deleted one throwaway strategy (TEST_Strat_<ts>) to verify create/edit/delete persistence. Net-zero database state at end of run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Visual overhaul (iter6) fully passing. Reusable Playwright testIDs for these screens: strategy — preset-<name>, strategy-<id>, del-strategy-<id>, new-strategy, cancel-strategy, strategy-name, strategy-risk, rule-<i>, add-rule, save-strategy. upload — close-upload, pick-camera, pick-gallery, clear-image, taken-yes, taken-no, strat-<id>, analyze-btn. pretrade — close-pretrade, pt-camera, pt-gallery, pt-strat-<id>, run-pretrade, upgrade-pretrade. Login flow unchanged (login-email/password/submit + whats-new-dismiss + daily-quote-dismiss). IMPORTANT: /pretrade is only reliably reachable via internal navigation (dashboard pretrade-btn or Router.push). Hard URL goto('/pretrade') during a fresh session redirects to '/' due to Expo Router auth-restore ordering — this is a PRE-EXISTING routing quirk unrelated to the restyle.",
+  "rca_of_issue": "N/A — no bugs. The pretrade hard-navigation redirect observed in the first test run is pre-existing (auth context restore races with route mounting); mitigated by using in-app navigation, which is what real users do."
+}

@@ -8,8 +8,8 @@ import * as ImagePicker from "expo-image-picker";
 import { api } from "@/src/api";
 import { useToast } from "@/src/context/ToastContext";
 import { useAuth } from "@/src/context/AuthContext";
-import { colors, spacing, radius, font, fs } from "@/src/theme";
-import { GradeBadge } from "@/src/components/ui";
+import { colors, spacing, radius, font, fs, glow } from "@/src/theme";
+import { GradeBadge, ScreenBackground } from "@/src/components/ui";
 
 export default function PreTrade() {
   const insets = useSafeAreaInsets();
@@ -45,6 +45,7 @@ export default function PreTrade() {
 
   return (
     <View style={styles.flex}>
+      <ScreenBackground />
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Pressable testID="close-pretrade" onPress={() => router.replace("/")}><Ionicons name="close" size={26} color={colors.onSurface} /></Pressable>
         <Text style={styles.title}>Pre-Trade Grader</Text>
@@ -90,7 +91,7 @@ export default function PreTrade() {
 
             {image && (
               <Pressable testID="run-pretrade" style={styles.runBtn} onPress={grade} disabled={busy}>
-                {busy ? <ActivityIndicator color={colors.onBrand} /> : <><Ionicons name="ribbon" size={20} color={colors.onBrand} /><Text style={styles.runTxt}>Grade This Setup</Text></>}
+                {busy ? <ActivityIndicator color={colors.onAccent} /> : <><Ionicons name="ribbon" size={20} color={colors.onAccent} /><Text style={styles.runTxt}>Grade This Setup</Text></>}
               </Pressable>
             )}
 
@@ -148,20 +149,20 @@ const styles = StyleSheet.create({
   disclaimerTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.warning + "18", borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.lg },
   disclaimerTopTxt: { flex: 1, color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
   pickers: { flexDirection: "row", gap: spacing.md },
-  pickBox: { flex: 1, aspectRatio: 1.2, backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  pickBox: { flex: 1, aspectRatio: 1.2, backgroundColor: colors.brandTint, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.brand, borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: spacing.sm, ...glow(colors.brand, 0.28) },
   pickTxt: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   img: { width: "100%", height: 240, borderRadius: radius.lg, backgroundColor: colors.surface2 },
   label: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.8, marginTop: spacing.xl },
   subLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, marginBottom: spacing.md, marginTop: 2 },
   chips: { gap: spacing.sm, paddingRight: spacing.lg },
   chip: { height: 36, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, justifyContent: "center", flexShrink: 0 },
-  chipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   chipTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
-  chipTxtActive: { color: colors.onBrand },
+  chipTxtActive: { color: colors.onAccent },
   noStrat: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.base },
-  runBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.brand, borderRadius: radius.md, paddingVertical: spacing.lg, marginTop: spacing.xl },
-  runTxt: { color: colors.onBrand, fontFamily: font.displayBold, fontSize: fs.lg },
-  result: { marginTop: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
+  runBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: spacing.lg, marginTop: spacing.xl, ...glow(colors.accent, 0.5) },
+  runTxt: { color: colors.onAccent, fontFamily: font.displayBold, fontSize: fs.lg },
+  result: { marginTop: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderStrong, ...glow(colors.brand, 0.25) },
   resHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   resLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.8 },
   bestFit: { color: colors.brand, fontFamily: font.display, fontSize: fs.lg },

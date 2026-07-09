@@ -1,12 +1,31 @@
 import React from "react";
-import { View, Text, StyleSheet, ViewStyle } from "react-native";
+import { View, Text, StyleSheet, ViewStyle, ActivityIndicator } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Polyline, Defs, LinearGradient as SvgGradient, Stop, Polygon, Line, Circle } from "react-native-svg";
 import Animated, { useSharedValue, useAnimatedProps, withTiming, Easing } from "react-native-reanimated";
 import { colors, spacing, radius, font, fs, gradients, glow, GRADE_COLORS } from "@/src/theme";
-import { CountUpText } from "@/src/components/anim";
+import { CountUpText, PressableScale } from "@/src/components/anim";
+
+// Bold gradient CTA button with a colored glow.
+export function GradientButton({ label, onPress, testID, icon, busy, disabled, grad = gradients.accent, textColor = colors.onAccent, style }:
+  { label: string; onPress?: () => void; testID?: string; icon?: string; busy?: boolean; disabled?: boolean; grad?: readonly string[]; textColor?: string; style?: ViewStyle }) {
+  return (
+    <PressableScale testID={testID} onPress={onPress} disabled={busy || disabled}
+      style={[{ borderRadius: radius.md, ...glow(grad[grad.length - 1], 0.5) }, disabled ? { opacity: 0.45 } : null, style]}>
+      <LinearGradient colors={grad as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, borderRadius: radius.md, paddingVertical: spacing.lg, paddingHorizontal: spacing.xl }}>
+        {busy ? <ActivityIndicator color={textColor} /> : (
+          <>
+            {icon ? <Ionicons name={icon as any} size={20} color={textColor} /> : null}
+            <Text style={{ color: textColor, fontFamily: font.displayBold, fontSize: fs.lg, letterSpacing: 0.5 }}>{label}</Text>
+          </>
+        )}
+      </LinearGradient>
+    </PressableScale>
+  );
+}
 
 const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);

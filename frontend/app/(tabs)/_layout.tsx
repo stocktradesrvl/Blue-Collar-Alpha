@@ -3,6 +3,7 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, font } from "@/src/theme";
 import WhatsNewModal from "@/src/components/WhatsNewModal";
+import DailyQuoteModal from "@/src/components/DailyQuoteModal";
 
 export default function TabsLayout() {
   return (
@@ -29,6 +30,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ color, size }) => <Ionicons name="person-circle" size={size} color={color} /> }} />
     </Tabs>
     <WhatsNewModal />
+    <DailyQuoteModal />
     </>
   );
 }

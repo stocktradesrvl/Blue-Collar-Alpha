@@ -3,10 +3,14 @@ import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoid
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { api } from "@/src/api";
 import { useToast } from "@/src/context/ToastContext";
 import { STRATEGY_PRESETS } from "@/src/strategyPresets";
-import { colors, spacing, radius, font, fs } from "@/src/theme";
+import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
+import { ScreenBackground } from "@/src/components/ui";
+import { PressableScale } from "@/src/components/anim";
 
 export default function Strategy() {
   const insets = useSafeAreaInsets();
@@ -50,6 +54,7 @@ export default function Strategy() {
   if (editing) {
     return (
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScreenBackground />
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingTop: insets.top + spacing.md, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
           <View style={styles.editHead}>
             <Pressable testID="cancel-strategy" onPress={() => setEditing(false)}><Ionicons name="close" size={26} color={colors.onSurface} /></Pressable>
@@ -77,7 +82,7 @@ export default function Strategy() {
           </Pressable>
         </ScrollView>
         <Pressable testID="save-strategy" style={[styles.saveBtn, { paddingBottom: (insets.bottom || spacing.md) + spacing.md }]} onPress={save} disabled={busy}>
-          {busy ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.saveTxt}>Save Strategy</Text>}
+          {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.saveTxt}>Save Strategy</Text>}
         </Pressable>
       </KeyboardAvoidingView>
     );
@@ -85,6 +90,7 @@ export default function Strategy() {
 
   return (
     <View style={styles.flex}>
+      <ScreenBackground />
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Text style={styles.title}>Strategies</Text>
         <Text style={styles.subtitle}>Define rules for the AI to enforce</Text>
@@ -104,22 +110,26 @@ export default function Strategy() {
             <Ionicons name="construct-outline" size={44} color={colors.onSurface3} />
             <Text style={styles.emptyTxt}>No strategies yet. Tap a template above or create your own.</Text>
           </View>
-        ) : strategies.map((s) => (
-          <Pressable key={s.id} testID={`strategy-${s.id}`} style={styles.card} onPress={() => openEdit(s)}>
+        ) : strategies.map((s, i) => (
+          <Animated.View key={s.id} entering={FadeInDown.duration(350).delay(Math.min(i, 8) * 45)}>
+          <PressableScale testID={`strategy-${s.id}`} style={styles.card} onPress={() => openEdit(s)}>
             <View style={styles.cardTop}>
               <Text style={styles.cardName}>{s.name}</Text>
               <Pressable testID={`del-strategy-${s.id}`} onPress={() => remove(s.id)} hitSlop={10}><Ionicons name="trash-outline" size={20} color={colors.onSurface3} /></Pressable>
             </View>
             <Text style={styles.cardRisk}>Risk {s.risk_pct}% · {s.rules.length} rules</Text>
-            {s.rules.slice(0, 3).map((r: string, i: number) => (
-              <View key={i} style={styles.ruleLine}><Ionicons name="checkmark-circle" size={14} color={colors.brand} /><Text style={styles.ruleTxt}>{r}</Text></View>
+            {s.rules.slice(0, 3).map((r: string, j: number) => (
+              <View key={j} style={styles.ruleLine}><Ionicons name="checkmark-circle" size={14} color={colors.success} /><Text style={styles.ruleTxt}>{r}</Text></View>
             ))}
-          </Pressable>
+          </PressableScale>
+          </Animated.View>
         ))}
       </ScrollView>
-      <Pressable testID="new-strategy" style={styles.fab} onPress={openNew}>
-        <Ionicons name="add" size={26} color={colors.onBrand} /><Text style={styles.fabTxt}>New Strategy</Text>
-      </Pressable>
+      <PressableScale testID="new-strategy" style={styles.fabWrap} onPress={openNew}>
+        <LinearGradient colors={gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
+          <Ionicons name="add" size={26} color={colors.onAccent} /><Text style={styles.fabTxt}>New Strategy</Text>
+        </LinearGradient>
+      </PressableScale>
     </View>
   );
 }
@@ -141,16 +151,17 @@ const styles = StyleSheet.create({
   ruleDel: { padding: spacing.xs },
   addRule: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.sm },
   addRuleTxt: { color: colors.brand, fontFamily: font.text, fontSize: fs.base },
-  saveBtn: { backgroundColor: colors.brand, alignItems: "center", paddingTop: spacing.lg },
-  saveTxt: { color: colors.onBrand, fontFamily: font.displayBold, fontSize: fs.lg },
+  saveBtn: { backgroundColor: colors.accent, alignItems: "center", paddingTop: spacing.lg, ...glow(colors.accent, 0.4) },
+  saveTxt: { color: colors.onAccent, fontFamily: font.displayBold, fontSize: fs.lg },
   empty: { alignItems: "center", padding: spacing.xxl, gap: spacing.md },
   emptyTxt: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.base, textAlign: "center" },
-  card: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.xs },
+  card: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.xs, ...glow(colors.brand, 0.18) },
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   cardName: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
-  cardRisk: { color: colors.brand, fontFamily: font.text, fontSize: fs.sm, marginBottom: spacing.xs },
+  cardRisk: { color: colors.accent, fontFamily: font.text, fontSize: fs.sm, marginBottom: spacing.xs },
   ruleLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   ruleTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, flex: 1 },
-  fab: { position: "absolute", bottom: 100, right: spacing.lg, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
+  fabWrap: { position: "absolute", bottom: 100, right: spacing.lg, borderRadius: radius.pill, ...glow(colors.accent, 0.6) },
+  fab: { flexDirection: "row", alignItems: "center", gap: spacing.sm, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
   fabTxt: { color: colors.onAccent, fontFamily: font.displayBold, fontSize: fs.lg },
 });
