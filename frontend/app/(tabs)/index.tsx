@@ -10,7 +10,7 @@ import * as Haptics from "expo-haptics";
 import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs, money, pnlColor, gradients, glow, cardShadow } from "@/src/theme";
 import { StatCard, EquityCurve, GradientCard, ScreenBackground } from "@/src/components/ui";
-import { PressableScale, CountUpText } from "@/src/components/anim";
+import { PressableScale, CountUpText, PulseHalo } from "@/src/components/anim";
 
 const RANGES: Record<string, number> = { "1W": 8, "1M": 31, ALL: 9999 };
 
@@ -75,7 +75,7 @@ export default function Dashboard() {
           </Pressable>
         )}
         <Animated.View style={styles.hero} entering={FadeIn.duration(900)}>
-          <Image source={require("../../assets/images/money-bg.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image source={require("../../assets/images/usd100.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" />
           <LinearGradient colors={[heroTint, "rgba(13,17,23,0.84)", "#0D1117"]} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
           <View style={styles.header}>
             <View>
@@ -186,6 +186,7 @@ export default function Dashboard() {
       </ScrollView>
 
       <PressableScale testID="fab-upload" style={styles.fabWrap} onPress={() => router.push("/upload")}>
+        <PulseHalo color={colors.accent} />
         <LinearGradient colors={gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
           <Ionicons name="camera" size={24} color={colors.onAccent} />
           <Text style={styles.fabTxt}>Add Trade</Text>

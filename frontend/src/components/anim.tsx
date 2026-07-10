@@ -1,6 +1,6 @@
 import React from "react";
-import { Pressable, PressableProps, ViewStyle, StyleProp, Text, TextStyle, TextProps } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import { Pressable, PressableProps, ViewStyle, StyleProp, Text, TextStyle, TextProps, StyleSheet } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withRepeat, withTiming, Easing } from "react-native-reanimated";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -46,5 +46,18 @@ export function CountUpText({ value, style, format, duration = 1800, testID, tri
   { value: number; style?: StyleProp<TextStyle>; format: (n: number) => string; duration?: number; testID?: string; trigger?: number } & TextProps) {
   const n = useCountUp(value, duration, trigger);
   return <Text testID={testID} style={style} {...rest}>{format(n)}</Text>;
+}
+
+// Continuously pulsing halo ring to draw the eye to a CTA. Sits behind the button.
+export function PulseHalo({ color, borderRadius = 999 }: { color: string; borderRadius?: number }) {
+  const p = useSharedValue(0);
+  React.useEffect(() => {
+    p.value = withRepeat(withTiming(1, { duration: 1700, easing: Easing.out(Easing.ease) }), -1, false);
+  }, [p]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + p.value * 0.4 }],
+    opacity: 0.55 * (1 - p.value),
+  }));
+  return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, backgroundColor: color }, style]} />;
 }
 
