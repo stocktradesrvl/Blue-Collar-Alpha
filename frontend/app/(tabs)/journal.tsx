@@ -35,7 +35,7 @@ export default function Journal() {
     const win = (item.pnl || 0) >= 0;
     const tint = win ? colors.success : colors.error;
     return (
-      <Animated.View entering={FadeInDown.duration(350).delay(Math.min(index, 8) * 45)}>
+      <Animated.View entering={FadeInDown.duration(600).delay(Math.min(index, 8) * 70)}>
       <PressableScale testID={`trade-${item.id}`} style={[styles.row, { borderColor: tint + "33" }]} onPress={() => router.push(`/trade/${item.id}`)}>
         <View style={[styles.strip, { backgroundColor: tint }]} />
         <View style={styles.rowMain}>

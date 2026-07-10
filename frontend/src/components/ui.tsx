@@ -12,17 +12,17 @@ const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// Full-screen ambient background: faint texture + navy glow scrim.
-// `tone` tints the top glow green (profit) or red (loss); default navy.
+// Full-screen ambient background: money texture + reactive glow scrim.
+// `tone` tints the glow green (profit) or red (loss); default green money glow.
 export function ScreenBackground({ tone = "neutral" }: { tone?: "neutral" | "up" | "down" }) {
   const glowTop =
-    tone === "up" ? "rgba(0,230,118,0.16)" :
-    tone === "down" ? "rgba(255,61,0,0.16)" :
-    "rgba(46,118,232,0.16)";
+    tone === "down" ? "rgba(255,61,0,0.20)" :
+    tone === "up" ? "rgba(0,230,118,0.26)" :
+    "rgba(0,230,118,0.20)";
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Image source={require("../../assets/images/hero-bg.jpg")} style={[StyleSheet.absoluteFill, { opacity: 0.14 }]} contentFit="cover" />
-      <LinearGradient colors={[glowTop, "rgba(13,17,23,0.86)", colors.surface]} locations={[0, 0.42, 1]} style={StyleSheet.absoluteFill} />
+      <Image source={require("../../assets/images/money-bg.jpg")} style={[StyleSheet.absoluteFill, { opacity: 0.22 }]} contentFit="cover" />
+      <LinearGradient colors={[glowTop, "rgba(13,17,23,0.90)", colors.surface]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
     </View>
   );
 }
@@ -92,7 +92,7 @@ export function EquityCurve({ data, width, height = 180, replay = 0 }: { data: n
   const progress = useSharedValue(0);
   React.useEffect(() => {
     progress.value = 0;
-    progress.value = withTiming(1, { duration: 950, easing: Easing.out(Easing.cubic) });
+    progress.value = withTiming(1, { duration: 1700, easing: Easing.out(Easing.cubic) });
   }, [geom.length, data?.length, progress, replay]);
 
   const lineProps = useAnimatedProps(() => ({ strokeDashoffset: geom.length * (1 - progress.value) }));

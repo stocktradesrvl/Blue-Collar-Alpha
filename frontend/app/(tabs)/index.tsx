@@ -63,7 +63,7 @@ export default function Dashboard() {
   return (
     <View style={styles.flex}>
       <ScreenBackground tone={empty ? "neutral" : up ? "up" : "down"} />
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 120, paddingHorizontal: spacing.lg }}
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 210, paddingHorizontal: spacing.lg }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}>
         {trial && (
           <Pressable testID="trial-banner" style={styles.trialBanner} onPress={() => router.push("/billing")}>
@@ -74,8 +74,8 @@ export default function Dashboard() {
             <Ionicons name="chevron-forward" size={18} color={colors.onBrand} />
           </Pressable>
         )}
-        <Animated.View style={styles.hero} entering={FadeIn.duration(500)}>
-          <Image source={require("../../assets/images/dashboard-texture.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <Animated.View style={styles.hero} entering={FadeIn.duration(900)}>
+          <Image source={require("../../assets/images/money-bg.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" />
           <LinearGradient colors={[heroTint, "rgba(13,17,23,0.84)", "#0D1117"]} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
           <View style={styles.header}>
             <View>
@@ -98,7 +98,7 @@ export default function Dashboard() {
           </View>
         ) : (
           <>
-            <Animated.View entering={FadeInDown.duration(400).delay(50)}>
+            <Animated.View entering={FadeInDown.duration(700).delay(200)}>
             <GradientCard accent={colors.brand} style={styles.chartCard}>
               <View style={styles.chartHead}>
                 <Text style={styles.cardTitle}>Equity Curve</Text>
@@ -117,7 +117,7 @@ export default function Dashboard() {
             </Animated.View>
 
             {weekly?.has_data && (
-              <Animated.View entering={FadeInDown.duration(400).delay(120)}>
+              <Animated.View entering={FadeInDown.duration(700).delay(450)}>
               <GradientCard accent={colors.accent} style={styles.weeklyCard}>
                 <View style={styles.weeklyHead}>
                   <Text style={styles.weeklyTitle}>This Week</Text>
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   emptyBox: { alignItems: "center", padding: spacing.xxl, backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.xl, gap: spacing.sm },
   emptyTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl, marginTop: spacing.sm },
   emptySub: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, textAlign: "center" },
-  fabWrap: { position: "absolute", bottom: 100, right: spacing.lg, borderRadius: radius.pill, ...glow(colors.accent, 0.6) },
+  fabWrap: { position: "absolute", bottom: 94, right: spacing.lg, borderRadius: radius.pill, ...glow(colors.accent, 0.6) },
   fab: { flexDirection: "row", alignItems: "center", gap: spacing.sm, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
   fabTxt: { color: colors.onAccent, fontFamily: font.displayBold, fontSize: fs.lg },
 });

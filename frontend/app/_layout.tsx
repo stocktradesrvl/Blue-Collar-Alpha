@@ -2,10 +2,11 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Font from "expo-font";
 import { useEffect, useState } from "react";
-import { LogBox } from "react-native";
+import { LogBox, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import * as NavigationBar from "expo-navigation-bar";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
@@ -62,6 +63,17 @@ function RootNavigator() {
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
   const fontsDone = useAppFonts();
+
+  // Immersive full-screen: hide the Android system navigation bar.
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    (async () => {
+      try {
+        await NavigationBar.setVisibilityAsync("hidden");
+        await NavigationBar.setBehaviorAsync("overlay-swipe");
+      } catch { /* no-op */ }
+    })();
+  }, []);
 
   useEffect(() => {
     if ((loaded || error) && fontsDone) SplashScreen.hideAsync();

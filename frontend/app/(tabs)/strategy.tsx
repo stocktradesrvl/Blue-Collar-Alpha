@@ -95,7 +95,7 @@ export default function Strategy() {
         <Text style={styles.title}>Strategies</Text>
         <Text style={styles.subtitle}>Define rules for the AI to enforce</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 200 }}>
         <Text style={styles.presetLabel}>Quick templates — tap to customize</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
           {STRATEGY_PRESETS.map((p) => (
@@ -111,7 +111,7 @@ export default function Strategy() {
             <Text style={styles.emptyTxt}>No strategies yet. Tap a template above or create your own.</Text>
           </View>
         ) : strategies.map((s, i) => (
-          <Animated.View key={s.id} entering={FadeInDown.duration(350).delay(Math.min(i, 8) * 45)}>
+          <Animated.View key={s.id} entering={FadeInDown.duration(600).delay(Math.min(i, 8) * 70)}>
           <PressableScale testID={`strategy-${s.id}`} style={styles.card} onPress={() => openEdit(s)}>
             <View style={styles.cardTop}>
               <Text style={styles.cardName}>{s.name}</Text>
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   cardRisk: { color: colors.accent, fontFamily: font.text, fontSize: fs.sm, marginBottom: spacing.xs },
   ruleLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   ruleTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, flex: 1 },
-  fabWrap: { position: "absolute", bottom: 100, right: spacing.lg, borderRadius: radius.pill, ...glow(colors.accent, 0.6) },
+  fabWrap: { position: "absolute", bottom: 94, right: spacing.lg, borderRadius: radius.pill, ...glow(colors.accent, 0.6) },
   fab: { flexDirection: "row", alignItems: "center", gap: spacing.sm, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
   fabTxt: { color: colors.onAccent, fontFamily: font.displayBold, fontSize: fs.lg },
 });
