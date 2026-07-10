@@ -8,6 +8,7 @@ import * as ImagePicker from "expo-image-picker";
 import { api } from "@/src/api";
 import { useToast } from "@/src/context/ToastContext";
 import { colors, spacing, radius, font, fs, glow } from "@/src/theme";
+import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
 import { playSound } from "@/src/utils/sound";
 
@@ -15,6 +16,7 @@ export default function Upload() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const toast = useToast();
+  const A = useAccent().theme;
   const [image, setImage] = useState<string | null>(null);
   const [strategies, setStrategies] = useState<any[]>([]);
   const [strategyIds, setStrategyIds] = useState<string[]>([]);
@@ -97,16 +99,16 @@ export default function Upload() {
           {strategies.map((s) => {
             const sel = strategyIds.includes(s.id);
             return (
-              <Pressable key={s.id} testID={`strat-${s.id}`} onPress={() => toggleStrategy(s.id)} style={[styles.chip, sel && styles.chipActive]}>
+              <Pressable key={s.id} testID={`strat-${s.id}`} onPress={() => toggleStrategy(s.id)} style={[styles.chip, sel && [styles.chipActive, { backgroundColor: A.accent, borderColor: A.accent }]]}>
                 {sel && <Ionicons name="checkmark" size={14} color={colors.onBrand} />}
-                <Text style={[styles.chipTxt, sel && styles.chipTxtActive]}>{s.name}</Text>
+                <Text style={[styles.chipTxt, sel && [styles.chipTxtActive, { color: A.onAccent }]]}>{s.name}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
 
-        <Pressable testID="analyze-btn" style={[styles.analyzeBtn, !image && styles.disabled]} onPress={analyze} disabled={busy || !image}>
-          {busy ? <ActivityIndicator color={colors.onAccent} /> : <><Ionicons name="sparkles" size={20} color={colors.onAccent} /><Text style={styles.analyzeTxt}>Analyze with AI</Text></>}
+        <Pressable testID="analyze-btn" style={[styles.analyzeBtn, { backgroundColor: A.accent, shadowColor: A.accent }, !image && styles.disabled]} onPress={analyze} disabled={busy || !image}>
+          {busy ? <ActivityIndicator color={A.onAccent} /> : <><Ionicons name="sparkles" size={20} color={A.onAccent} /><Text style={[styles.analyzeTxt, { color: A.onAccent }]}>Analyze with AI</Text></>}
         </Pressable>
         <Text style={styles.hint}>The AI reads your trade, grades the setup A–F, and checks your strategy rules.</Text>
       </ScrollView>

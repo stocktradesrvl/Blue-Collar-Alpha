@@ -2,16 +2,18 @@ import React from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, font } from "@/src/theme";
+import { useAccent } from "@/src/context/AccentContext";
 import WhatsNewModal from "@/src/components/WhatsNewModal";
 import DailyQuoteModal from "@/src/components/DailyQuoteModal";
 
 export default function TabsLayout() {
+  const { theme: A } = useAccent();
   return (
     <>
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.accent,
+        tabBarActiveTintColor: A.accent,
         tabBarInactiveTintColor: colors.onSurface3,
         tabBarStyle: {
           backgroundColor: colors.surface2,

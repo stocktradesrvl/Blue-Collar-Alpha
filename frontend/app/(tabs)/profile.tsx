@@ -11,6 +11,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/context/ToastContext";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
+import { useAccent, ACCENT_LIST } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
 import { isSoundMuted, setSoundMuted } from "@/src/utils/sound";
 import { storage } from "@/src/utils/storage";
@@ -26,6 +27,7 @@ export default function Profile() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout, setTier, setBalance, changePassword, refresh } = useAuth();
+  const { theme: A, accentId, setAccentId } = useAccent();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [balInput, setBalInput] = useState(String(user?.account_balance ?? 10000));
@@ -125,11 +127,11 @@ export default function Profile() {
             <Text style={styles.email} numberOfLines={1}>{user?.email}</Text>
             {(() => {
               const t = user?.subscription_tier || "free";
-              const g = t === "premium" ? gradients.accent : t === "pro" ? gradients.brand : null;
+              const g = t === "premium" ? A.gradient : t === "pro" ? gradients.brand : null;
               return g ? (
-                <LinearGradient colors={g} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.tierBadge, styles.tierBadgeGlow, t === "premium" ? glow(colors.accent, 0.5) : glow(colors.brand, 0.5)]}>
-                  <Ionicons name={t === "premium" ? "star" : "ribbon"} size={12} color={t === "premium" ? colors.onAccent : colors.onBrand} />
-                  <Text style={[styles.tierBadgeTxt, { color: t === "premium" ? colors.onAccent : colors.onBrand }]}>{t.toUpperCase()}</Text>
+                <LinearGradient colors={g} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.tierBadge, styles.tierBadgeGlow, t === "premium" ? glow(A.accent, 0.5) : glow(colors.brand, 0.5)]}>
+                  <Ionicons name={t === "premium" ? "star" : "ribbon"} size={12} color={t === "premium" ? A.onAccent : colors.onBrand} />
+                  <Text style={[styles.tierBadgeTxt, { color: t === "premium" ? A.onAccent : colors.onBrand }]}>{t.toUpperCase()}</Text>
                 </LinearGradient>
               ) : (
                 <View style={styles.tierBadge}><Text style={styles.tierBadgeTxt}>{t.toUpperCase()}</Text></View>
@@ -161,11 +163,11 @@ export default function Profile() {
         <View style={styles.settingsCard}>
           <View style={styles.prefRow}>
             <View style={styles.prefLeft}>
-              <Ionicons name={soundOn ? "volume-high" : "volume-mute"} size={20} color={colors.accent} />
+              <Ionicons name={soundOn ? "volume-high" : "volume-mute"} size={20} color={A.accent} />
               <Text style={styles.prefLabel}>Sound Effects</Text>
             </View>
             <Switch testID="sound-toggle" value={soundOn} onValueChange={toggleSound}
-              trackColor={{ false: colors.surface3, true: colors.accent }} thumbColor={colors.onSurface} />
+              trackColor={{ false: colors.surface3, true: A.accent }} thumbColor={colors.onSurface} />
           </View>
 
           <View style={styles.prefDivider} />
@@ -173,15 +175,31 @@ export default function Profile() {
           <View style={styles.backdropRow}>
             {BACKDROPS.map((b) => (
               <Pressable key={b.id} testID={`backdrop-${b.id}`} style={styles.backdropItem} onPress={() => pickBackdrop(b.id)}>
-                <View style={[styles.backdropThumb, backdrop === b.id && styles.backdropThumbActive]}>
+                <View style={[styles.backdropThumb, backdrop === b.id && [styles.backdropThumbActive, { borderColor: A.accent, shadowColor: A.accent }]]}>
                   <Image source={b.source} style={StyleSheet.absoluteFill} contentFit="cover" />
                   {backdrop === b.id && (
-                    <View style={styles.backdropCheck}><Ionicons name="checkmark-circle" size={22} color={colors.accent} /></View>
+                    <View style={styles.backdropCheck}><Ionicons name="checkmark-circle" size={22} color={A.accent} /></View>
                   )}
                 </View>
-                <Text style={[styles.backdropLabel, backdrop === b.id && { color: colors.accent }]}>{b.label}</Text>
+                <Text style={[styles.backdropLabel, backdrop === b.id && { color: A.accent }]}>{b.label}</Text>
               </Pressable>
             ))}
+          </View>
+
+          <View style={styles.prefDivider} />
+          <Text style={styles.prefLabel}>Accent Color</Text>
+          <View style={styles.accentRow}>
+            {ACCENT_LIST.map((ac) => {
+              const active = accentId === ac.id;
+              return (
+                <Pressable key={ac.id} testID={`accent-${ac.id}`} style={styles.accentItem} onPress={() => setAccentId(ac.id)}>
+                  <View style={[styles.accentSwatch, { backgroundColor: ac.accent, borderColor: active ? colors.onSurface : "transparent" }, active && glow(ac.accent, 0.6)]}>
+                    {active && <Ionicons name="checkmark" size={20} color={ac.onAccent} />}
+                  </View>
+                  <Text style={[styles.accentLabel, active && { color: ac.accent }]}>{ac.label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
@@ -216,7 +234,7 @@ export default function Profile() {
         {PLANS.map((p) => {
           const active = user?.subscription_tier === p.tier;
           return (
-            <View key={p.tier} style={[styles.plan, active && styles.planActive]}>
+            <View key={p.tier} style={[styles.plan, active && [styles.planActive, { borderColor: A.accent, shadowColor: A.accent }]]}>
               <View style={styles.planTop}>
                 <View style={styles.planNameWrap}>
                   <Text style={styles.planName}>{p.name}</Text>
@@ -275,6 +293,10 @@ const styles = StyleSheet.create({
   backdropThumbActive: { borderColor: colors.accent, ...glow(colors.accent, 0.4) },
   backdropCheck: { position: "absolute", top: 4, right: 4, backgroundColor: colors.surface, borderRadius: radius.pill },
   backdropLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
+  accentRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm },
+  accentItem: { alignItems: "center", gap: spacing.xs },
+  accentSwatch: { width: 44, height: 44, borderRadius: radius.pill, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  accentLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
   settingLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
   inlineRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   settingInput: { flex: 1, backgroundColor: colors.surface3, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },

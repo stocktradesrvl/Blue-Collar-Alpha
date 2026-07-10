@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs, money, pnlColor } from "@/src/theme";
+import { useAccent } from "@/src/context/AccentContext";
 import { GradeBadge, ScreenBackground } from "@/src/components/ui";
 import { PressableScale } from "@/src/components/anim";
 
@@ -14,6 +15,7 @@ const GRADES = ["All", "A", "B", "C", "D", "F"];
 export default function Journal() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const A = useAccent().theme;
   const [trades, setTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
@@ -64,18 +66,18 @@ export default function Journal() {
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Text style={styles.title}>Trade Journal</Text>
         <View style={styles.segment}>
-          <Pressable testID="tab-executed" onPress={() => setTab("executed")} style={[styles.segBtn, tab === "executed" && styles.segActive]}>
-            <Text style={[styles.segTxt, tab === "executed" && styles.segTxtActive]}>Executed</Text>
+          <Pressable testID="tab-executed" onPress={() => setTab("executed")} style={[styles.segBtn, tab === "executed" && [styles.segActive, { backgroundColor: A.accent }]]}>
+            <Text style={[styles.segTxt, tab === "executed" && [styles.segTxtActive, { color: A.onAccent }]]}>Executed</Text>
           </Pressable>
-          <Pressable testID="tab-missed" onPress={() => setTab("missed")} style={[styles.segBtn, tab === "missed" && styles.segActive]}>
-            <Text style={[styles.segTxt, tab === "missed" && styles.segTxtActive]}>Missed / Ideas</Text>
+          <Pressable testID="tab-missed" onPress={() => setTab("missed")} style={[styles.segBtn, tab === "missed" && [styles.segActive, { backgroundColor: A.accent }]]}>
+            <Text style={[styles.segTxt, tab === "missed" && [styles.segTxtActive, { color: A.onAccent }]]}>Missed / Ideas</Text>
           </Pressable>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           {GRADES.map((g) => (
             <Pressable key={g} testID={`filter-${g}`} onPress={() => setFilter(g)}
-              style={[styles.chip, filter === g && styles.chipActive]}>
-              <Text style={[styles.chipTxt, filter === g && styles.chipTxtActive]}>{g === "All" ? "All" : `Grade ${g}`}</Text>
+              style={[styles.chip, filter === g && [styles.chipActive, { backgroundColor: A.accent, borderColor: A.accent }]]}>
+              <Text style={[styles.chipTxt, filter === g && [styles.chipTxtActive, { color: A.onAccent }]]}>{g === "All" ? "All" : `Grade ${g}`}</Text>
             </Pressable>
           ))}
         </ScrollView>

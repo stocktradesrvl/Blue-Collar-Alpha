@@ -8,7 +8,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { api } from "@/src/api";
-import { colors, spacing, radius, font, fs, money, pnlColor, gradients, glow, cardShadow } from "@/src/theme";
+import { colors, spacing, radius, font, fs, money, pnlColor, glow, cardShadow } from "@/src/theme";
+import { useAccent } from "@/src/context/AccentContext";
 import { StatCard, EquityCurve, GradientCard, ScreenBackground } from "@/src/components/ui";
 import { PressableScale, CountUpText, PulseHalo } from "@/src/components/anim";
 import { playSound } from "@/src/utils/sound";
@@ -21,6 +22,7 @@ export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const A = useAccent().theme;
   const [stats, setStats] = useState<any>(null);
   const [trial, setTrial] = useState<{ days: number } | null>(null);
   const [weekly, setWeekly] = useState<any>(null);
@@ -126,7 +128,7 @@ export default function Dashboard() {
 
             {weekly?.has_data && (
               <Animated.View entering={FadeInDown.duration(700).delay(450)}>
-              <GradientCard accent={colors.accent} style={styles.weeklyCard}>
+              <GradientCard accent={A.accent} style={styles.weeklyCard}>
                 <View style={styles.weeklyHead}>
                   <Text style={styles.weeklyTitle}>This Week</Text>
                   <View style={[styles.wrTrend, { backgroundColor: (weekly.wr_change >= 0 ? colors.success : colors.error) + "22" }]}>
@@ -149,7 +151,7 @@ export default function Dashboard() {
                   </View>
                 </View>
                 <View style={styles.takeawayRow}>
-                  <Ionicons name="sparkles" size={14} color={colors.accent} />
+                  <Ionicons name="sparkles" size={14} color={A.accent} />
                   <Text style={styles.takeawayTxt}>{weekly.takeaway}</Text>
                 </View>
               </GradientCard>
@@ -193,11 +195,11 @@ export default function Dashboard() {
         )}
       </ScrollView>
 
-      <PressableScale testID="fab-upload" style={styles.fabWrap} onPress={() => router.push("/upload")}>
-        <PulseHalo color={colors.accent} />
-        <LinearGradient colors={gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
-          <Ionicons name="camera" size={24} color={colors.onAccent} />
-          <Text style={styles.fabTxt}>Add Trade</Text>
+      <PressableScale testID="fab-upload" style={[styles.fabWrap, { shadowColor: A.accent }]} onPress={() => router.push("/upload")}>
+        <PulseHalo color={A.accent} />
+        <LinearGradient colors={A.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
+          <Ionicons name="camera" size={24} color={A.onAccent} />
+          <Text style={[styles.fabTxt, { color: A.onAccent }]}>Add Trade</Text>
         </LinearGradient>
       </PressableScale>
     </View>

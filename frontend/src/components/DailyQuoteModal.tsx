@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { storage } from "@/src/utils/storage";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
+import { useAccent } from "@/src/context/AccentContext";
 import { TRADER_QUOTES, Quote } from "@/src/traderQuotes";
 import { WHATS_NEW_VERSION } from "@/src/whatsNew";
 
@@ -28,6 +29,7 @@ function shuffle(arr: number[]) {
 export default function DailyQuoteModal() {
   const [visible, setVisible] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
+  const A = useAccent().theme;
 
   useEffect(() => {
     (async () => {
@@ -56,10 +58,10 @@ export default function DailyQuoteModal() {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
       <View style={styles.overlay}>
         <LinearGradient colors={gradients.card} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
-          <View style={styles.badge}>
-            <Ionicons name="trending-up" size={24} color={colors.onAccent} />
+          <View style={[styles.badge, { backgroundColor: A.accent, shadowColor: A.accent }]}>
+            <Ionicons name="trending-up" size={24} color={A.onAccent} />
           </View>
-          <Text style={styles.eyebrow}>{"Today's Edge"}</Text>
+          <Text style={[styles.eyebrow, { color: A.accent }]}>{"Today's Edge"}</Text>
           <Ionicons name="chatbox-ellipses" size={20} color={colors.brand} style={{ marginBottom: spacing.sm }} />
           <Text style={styles.quote}>{`"${quote.text}"`}</Text>
           <Text style={styles.author}>— {quote.author}</Text>

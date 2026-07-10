@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { storage } from "@/src/utils/storage";
 import { colors, spacing, radius, font, fs } from "@/src/theme";
+import { useAccent } from "@/src/context/AccentContext";
 import { WHATS_NEW, WHATS_NEW_VERSION } from "@/src/whatsNew";
 
 const SEEN_KEY = "tm_whats_new_version";
@@ -11,6 +12,7 @@ const SEEN_KEY = "tm_whats_new_version";
 export default function WhatsNewModal() {
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
+  const A = useAccent().theme;
 
   useEffect(() => {
     (async () => {
@@ -28,8 +30,8 @@ export default function WhatsNewModal() {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={dismiss}>
       <View style={styles.overlay}>
         <View style={[styles.card, { paddingBottom: insets.bottom + spacing.lg }]}>
-          <View style={styles.badge}>
-            <Ionicons name="sparkles" size={22} color={colors.onAccent} />
+          <View style={[styles.badge, { backgroundColor: A.accent }]}>
+            <Ionicons name="sparkles" size={22} color={A.onAccent} />
           </View>
           <Text style={styles.title}>{"What's New"}</Text>
           <Text style={styles.subtitle}>The latest updates in Blue Collar Strategy Guide</Text>

@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { useToast } from "@/src/context/ToastContext";
 import { useAuth } from "@/src/context/AuthContext";
 import { colors, spacing, radius, font, fs, glow } from "@/src/theme";
+import { useAccent } from "@/src/context/AccentContext";
 import { GradeBadge, ScreenBackground } from "@/src/components/ui";
 
 export default function PreTrade() {
@@ -16,6 +17,7 @@ export default function PreTrade() {
   const router = useRouter();
   const toast = useToast();
   const { user } = useAuth();
+  const A = useAccent().theme;
   const [image, setImage] = useState<string | null>(null);
   const [strategies, setStrategies] = useState<any[]>([]);
   const [strategyIds, setStrategyIds] = useState<string[]>([]);
@@ -81,17 +83,17 @@ export default function PreTrade() {
               {strategies.map((s) => {
                 const sel = strategyIds.includes(s.id);
                 return (
-                  <Pressable key={s.id} testID={`pt-strat-${s.id}`} onPress={() => toggle(s.id)} style={[styles.chip, sel && styles.chipActive]}>
+                  <Pressable key={s.id} testID={`pt-strat-${s.id}`} onPress={() => toggle(s.id)} style={[styles.chip, sel && [styles.chipActive, { backgroundColor: A.accent, borderColor: A.accent }]]}>
                     {sel && <Ionicons name="checkmark" size={14} color={colors.onBrand} />}
-                    <Text style={[styles.chipTxt, sel && styles.chipTxtActive]}>{s.name}</Text>
+                    <Text style={[styles.chipTxt, sel && [styles.chipTxtActive, { color: A.onAccent }]]}>{s.name}</Text>
                   </Pressable>
                 );
               })}
             </ScrollView>
 
             {image && (
-              <Pressable testID="run-pretrade" style={styles.runBtn} onPress={grade} disabled={busy}>
-                {busy ? <ActivityIndicator color={colors.onAccent} /> : <><Ionicons name="ribbon" size={20} color={colors.onAccent} /><Text style={styles.runTxt}>Grade This Setup</Text></>}
+              <Pressable testID="run-pretrade" style={[styles.runBtn, { backgroundColor: A.accent, shadowColor: A.accent }]} onPress={grade} disabled={busy}>
+                {busy ? <ActivityIndicator color={A.onAccent} /> : <><Ionicons name="ribbon" size={20} color={A.onAccent} /><Text style={[styles.runTxt, { color: A.onAccent }]}>Grade This Setup</Text></>}
               </Pressable>
             )}
 

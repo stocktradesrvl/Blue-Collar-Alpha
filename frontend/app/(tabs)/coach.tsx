@@ -7,6 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
+import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
 
 const SUGGESTIONS = ["Why am I losing money?", "What's my best setup?", "Should I stop after two losses?", "What mistakes cost me the most?"];
@@ -25,6 +26,7 @@ export default function Coach() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const A = useAccent().theme;
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [input, setInput] = useState("");
@@ -64,7 +66,7 @@ export default function Coach() {
       <View style={styles.flex}>
         <ScreenBackground />
         <View style={[styles.lock, { paddingTop: insets.top + 80 }]}>
-          <View style={styles.lockIcon}><Ionicons name="sparkles" size={40} color={colors.accent} /></View>
+          <View style={[styles.lockIcon, { backgroundColor: A.accentTint, shadowColor: A.accent }]}><Ionicons name="sparkles" size={40} color={A.accent} /></View>
           <Text style={styles.lockTitle}>AI Coach Chat</Text>
           <Text style={styles.lockSub}>Ask questions about your own trading data. Available on the Premium plan.</Text>
           <Pressable testID="upgrade-coach" style={styles.upgradeBtn} onPress={() => router.push("/(tabs)/profile")}>
@@ -102,7 +104,7 @@ export default function Coach() {
             </LinearGradient>
           ) : (
             <LinearGradient key={i} colors={["rgba(46,118,232,0.16)", "rgba(22,27,34,0.95)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.ai]}>
-              <Ionicons name="sparkles" size={14} color={colors.accent} style={{ marginBottom: 4 }} />
+              <Ionicons name="sparkles" size={14} color={A.accent} style={{ marginBottom: 4 }} />
               <Text style={styles.msgTxt}>{m.content}</Text>
             </LinearGradient>
           )
@@ -113,8 +115,8 @@ export default function Coach() {
             <Text style={styles.followLabel}>Follow up</Text>
             <View style={styles.followRow}>
               {(suggestions.length > 0 ? suggestions : FOLLOWUPS.filter((f) => !messages.some((m) => m.content === f))).slice(0, 3).map((f) => (
-                <Pressable key={f} testID={`followup-${f.slice(0, 6)}`} style={styles.followChip} onPress={() => send(f)}>
-                  <Text style={styles.followTxt}>{f}</Text>
+                <Pressable key={f} testID={`followup-${f.slice(0, 6)}`} style={[styles.followChip, { backgroundColor: A.accentTint, borderColor: A.accent }]} onPress={() => send(f)}>
+                  <Text style={[styles.followTxt, { color: A.accent }]}>{f}</Text>
                 </Pressable>
               ))}
             </View>
@@ -125,8 +127,8 @@ export default function Coach() {
         <TextInput testID="coach-input" style={styles.input} placeholder="Ask your coach..." placeholderTextColor={colors.onSurface3}
           value={input} onChangeText={setInput} multiline />
         <Pressable testID="coach-send" onPress={() => send(input)} disabled={busy}>
-          <LinearGradient colors={gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.sendBtn}>
-            <Ionicons name="arrow-up" size={22} color={colors.onAccent} />
+          <LinearGradient colors={A.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.sendBtn, { shadowColor: A.accent }]}>
+            <Ionicons name="arrow-up" size={22} color={A.onAccent} />
           </LinearGradient>
         </Pressable>
       </View>

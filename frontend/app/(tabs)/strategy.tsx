@@ -8,13 +8,15 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { api } from "@/src/api";
 import { useToast } from "@/src/context/ToastContext";
 import { STRATEGY_PRESETS } from "@/src/strategyPresets";
-import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
+import { colors, spacing, radius, font, fs, glow } from "@/src/theme";
+import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
 import { PressableScale } from "@/src/components/anim";
 
 export default function Strategy() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const A = useAccent().theme;
   const [strategies, setStrategies] = useState<any[]>([]);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
@@ -81,8 +83,8 @@ export default function Strategy() {
             <Ionicons name="add" size={18} color={colors.brand} /><Text style={styles.addRuleTxt}>Add rule</Text>
           </Pressable>
         </ScrollView>
-        <Pressable testID="save-strategy" style={[styles.saveBtn, { paddingBottom: (insets.bottom || spacing.md) + spacing.md }]} onPress={save} disabled={busy}>
-          {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.saveTxt}>Save Strategy</Text>}
+        <Pressable testID="save-strategy" style={[styles.saveBtn, { backgroundColor: A.accent, shadowColor: A.accent, paddingBottom: (insets.bottom || spacing.md) + spacing.md }]} onPress={save} disabled={busy}>
+          {busy ? <ActivityIndicator color={A.onAccent} /> : <Text style={[styles.saveTxt, { color: A.onAccent }]}>Save Strategy</Text>}
         </Pressable>
       </KeyboardAvoidingView>
     );
@@ -117,7 +119,7 @@ export default function Strategy() {
               <Text style={styles.cardName}>{s.name}</Text>
               <Pressable testID={`del-strategy-${s.id}`} onPress={() => remove(s.id)} hitSlop={10}><Ionicons name="trash-outline" size={20} color={colors.onSurface3} /></Pressable>
             </View>
-            <Text style={styles.cardRisk}>Risk {s.risk_pct}% · {s.rules.length} rules</Text>
+            <Text style={[styles.cardRisk, { color: A.accent }]}>Risk {s.risk_pct}% · {s.rules.length} rules</Text>
             {s.rules.slice(0, 3).map((r: string, j: number) => (
               <View key={j} style={styles.ruleLine}><Ionicons name="checkmark-circle" size={14} color={colors.success} /><Text style={styles.ruleTxt}>{r}</Text></View>
             ))}
@@ -125,9 +127,9 @@ export default function Strategy() {
           </Animated.View>
         ))}
       </ScrollView>
-      <PressableScale testID="new-strategy" style={styles.fabWrap} onPress={openNew}>
-        <LinearGradient colors={gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
-          <Ionicons name="add" size={26} color={colors.onAccent} /><Text style={styles.fabTxt}>New Strategy</Text>
+      <PressableScale testID="new-strategy" style={[styles.fabWrap, { shadowColor: A.accent }]} onPress={openNew}>
+        <LinearGradient colors={A.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
+          <Ionicons name="add" size={26} color={A.onAccent} /><Text style={[styles.fabTxt, { color: A.onAccent }]}>New Strategy</Text>
         </LinearGradient>
       </PressableScale>
     </View>

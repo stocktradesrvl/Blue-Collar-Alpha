@@ -57,3 +57,7 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 1. Frontend UI validation via testing agent (flows: register→upload→detail→dashboard→strategy→tier upgrade→coach/chart).
 2. Add Stripe for real subscriptions.
 3. Options/futures-specific analysis fields.
+
+## Personalization (2026-06)
+- Dynamic accent-color theme: React Context (`src/context/AccentContext.tsx`) with 5 presets (Orange default, Gold, Green, Blue, Purple), persisted to AsyncStorage (`tm_accent`). Live-swaps app-wide (tab bar, FABs, gradient buttons, glows, chips, plan borders) without restart. Picker UI in Profile → Preferences. `useAccent()` hook exposes `{ theme, accentId, setAccentId }`.
+- Dashboard backdrop picker (Cash/Gold/Charts) independent of accent (`src/appearance.ts`).

@@ -12,6 +12,7 @@ import { initSound } from "@/src/utils/sound";
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
 import { ToastProvider } from "@/src/context/ToastContext";
+import { AccentProvider } from "@/src/context/AccentContext";
 import { colors } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
@@ -88,8 +89,10 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <ToastProvider>
-            <StatusBar style="light" />
-            <RootNavigator />
+            <AccentProvider>
+              <StatusBar style="light" />
+              <RootNavigator />
+            </AccentProvider>
           </ToastProvider>
         </AuthProvider>
       </SafeAreaProvider>
