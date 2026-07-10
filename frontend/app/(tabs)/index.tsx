@@ -12,6 +12,8 @@ import { colors, spacing, radius, font, fs, money, pnlColor, gradients, glow, ca
 import { StatCard, EquityCurve, GradientCard, ScreenBackground } from "@/src/components/ui";
 import { PressableScale, CountUpText, PulseHalo } from "@/src/components/anim";
 import { playSound } from "@/src/utils/sound";
+import { storage } from "@/src/utils/storage";
+import { BACKDROP_KEY, backdropSource } from "@/src/appearance";
 
 const RANGES: Record<string, number> = { "1W": 8, "1M": 31, ALL: 9999 };
 
@@ -26,6 +28,7 @@ export default function Dashboard() {
   const [range, setRange] = useState<keyof typeof RANGES>("ALL");
   const [refreshing, setRefreshing] = useState(false);
   const [tick, setTick] = useState(0);
+  const [backdrop, setBackdrop] = useState<string | null>("cash");
 
   const load = useCallback(async () => {
     try { setStats(await api.get("/dashboard/stats")); } catch {}
@@ -43,6 +46,9 @@ export default function Dashboard() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    storage.getItem<string>(BACKDROP_KEY, "cash").then((v) => setBackdrop(v || "cash"));
+  }, []));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -77,7 +83,7 @@ export default function Dashboard() {
           </Pressable>
         )}
         <Animated.View style={styles.hero} entering={FadeIn.duration(900)}>
-          <Image source={require("../../assets/images/usd100.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image source={backdropSource(backdrop)} style={StyleSheet.absoluteFill} contentFit="cover" />
           <LinearGradient colors={[heroTint, "rgba(13,17,23,0.84)", "#0D1117"]} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
           <View style={styles.header}>
             <View>

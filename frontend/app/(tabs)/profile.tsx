@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share, TextInput, KeyboardAvoidingView, Platform, Switch } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +13,8 @@ import { useToast } from "@/src/context/ToastContext";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 import { ScreenBackground } from "@/src/components/ui";
 import { isSoundMuted, setSoundMuted } from "@/src/utils/sound";
+import { storage } from "@/src/utils/storage";
+import { BACKDROP_KEY, BACKDROPS } from "@/src/appearance";
 
 const PLANS = [
   { tier: "free", name: "Free", price: "$0", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
@@ -29,6 +32,16 @@ export default function Profile() {
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [soundOn, setSoundOn] = useState(!isSoundMuted());
+  const [backdrop, setBackdrop] = useState<string>("cash");
+
+  useEffect(() => {
+    storage.getItem<string>(BACKDROP_KEY, "cash").then((v) => setBackdrop(v || "cash"));
+  }, []);
+
+  const pickBackdrop = async (id: string) => {
+    setBackdrop(id);
+    await storage.setItem(BACKDROP_KEY, id);
+  };
 
   const toggleSound = async (v: boolean) => {
     setSoundOn(v);
@@ -154,6 +167,22 @@ export default function Profile() {
             <Switch testID="sound-toggle" value={soundOn} onValueChange={toggleSound}
               trackColor={{ false: colors.surface3, true: colors.accent }} thumbColor={colors.onSurface} />
           </View>
+
+          <View style={styles.prefDivider} />
+          <Text style={styles.prefLabel}>Dashboard Backdrop</Text>
+          <View style={styles.backdropRow}>
+            {BACKDROPS.map((b) => (
+              <Pressable key={b.id} testID={`backdrop-${b.id}`} style={styles.backdropItem} onPress={() => pickBackdrop(b.id)}>
+                <View style={[styles.backdropThumb, backdrop === b.id && styles.backdropThumbActive]}>
+                  <Image source={b.source} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  {backdrop === b.id && (
+                    <View style={styles.backdropCheck}><Ionicons name="checkmark-circle" size={22} color={colors.accent} /></View>
+                  )}
+                </View>
+                <Text style={[styles.backdropLabel, backdrop === b.id && { color: colors.accent }]}>{b.label}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={styles.referCard}>
@@ -239,6 +268,13 @@ const styles = StyleSheet.create({
   prefRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   prefLeft: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   prefLabel: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
+  prefDivider: { height: 1, backgroundColor: colors.divider, marginVertical: spacing.md },
+  backdropRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
+  backdropItem: { flex: 1, alignItems: "center", gap: spacing.xs },
+  backdropThumb: { width: "100%", aspectRatio: 1.3, borderRadius: radius.md, overflow: "hidden", borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface3 },
+  backdropThumbActive: { borderColor: colors.accent, ...glow(colors.accent, 0.4) },
+  backdropCheck: { position: "absolute", top: 4, right: 4, backgroundColor: colors.surface, borderRadius: radius.pill },
+  backdropLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
   settingLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
   inlineRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   settingInput: { flex: 1, backgroundColor: colors.surface3, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
