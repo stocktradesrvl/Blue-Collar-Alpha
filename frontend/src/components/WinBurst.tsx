@@ -45,7 +45,7 @@ export function WinBurst({ visible }: { visible: boolean }) {
   React.useEffect(() => {
     if (visible) {
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-      playSound("win");
+      playSound("chaching");
       setShow(true);
       const timer = setTimeout(() => setShow(false), 2600);
       return () => clearTimeout(timer);

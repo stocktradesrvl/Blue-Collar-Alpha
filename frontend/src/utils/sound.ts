@@ -4,7 +4,8 @@ import { storage } from "@/src/utils/storage";
 const MUTE_KEY = "tm_sound_muted";
 
 const SOURCES: Record<string, any> = {
-  win: require("@/assets/sounds/win.wav"),
+  chaching: require("@/assets/sounds/chaching.wav"),
+  coin: require("@/assets/sounds/coin.wav"),
   refresh: require("@/assets/sounds/refresh.wav"),
 };
 
@@ -35,7 +36,7 @@ export async function setSoundMuted(value: boolean) {
   try { await storage.setItem(MUTE_KEY, value); } catch { /* no-op */ }
 }
 
-export function playSound(name: "win" | "refresh") {
+export function playSound(name: "chaching" | "coin" | "refresh") {
   if (muted) return;
   const p = players[name];
   if (!p) return;

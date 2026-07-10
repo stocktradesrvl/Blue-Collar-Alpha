@@ -9,6 +9,7 @@ import { api } from "@/src/api";
 import { useToast } from "@/src/context/ToastContext";
 import { colors, spacing, radius, font, fs, glow } from "@/src/theme";
 import { ScreenBackground } from "@/src/components/ui";
+import { playSound } from "@/src/utils/sound";
 
 export default function Upload() {
   const insets = useSafeAreaInsets();
@@ -41,6 +42,7 @@ export default function Upload() {
     setBusy(true);
     try {
       const trade = await api.post("/trades/analyze-screenshot", { image_base64: image, strategy_ids: strategyIds, taken });
+      if (taken && (trade?.pnl || 0) > 0) playSound("coin");
       router.replace(`/trade/${trade.id}`);
     } catch (e: any) {
       toast(e.message || "Analysis failed", "error");
