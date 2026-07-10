@@ -11,6 +11,7 @@ import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs, money, pnlColor, gradients, glow, cardShadow } from "@/src/theme";
 import { StatCard, EquityCurve, GradientCard, ScreenBackground } from "@/src/components/ui";
 import { PressableScale, CountUpText, PulseHalo } from "@/src/components/anim";
+import { playSound } from "@/src/utils/sound";
 
 const RANGES: Record<string, number> = { "1W": 8, "1M": 31, ALL: 9999 };
 
@@ -48,6 +49,7 @@ export default function Dashboard() {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     await load();
     setTick((t) => t + 1);
+    playSound("refresh");
     setRefreshing(false);
   }, [load]);
 

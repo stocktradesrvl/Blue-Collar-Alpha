@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, useWindowDimensions } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing, FadeInDown, FadeOut } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { colors, spacing, radius, font, fs, glow } from "@/src/theme";
+import { playSound } from "@/src/utils/sound";
 
 const PIECE_COLORS = ["#00E676", "#FF7F00", "#FFD54F", "#2E76E8", "#FFFFFF"];
 const COUNT = 22;
@@ -44,6 +45,7 @@ export function WinBurst({ visible }: { visible: boolean }) {
   React.useEffect(() => {
     if (visible) {
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      playSound("win");
       setShow(true);
       const timer = setTimeout(() => setShow(false), 2600);
       return () => clearTimeout(timer);

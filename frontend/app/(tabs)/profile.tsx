@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share, TextInput, KeyboardAvoidingView, Platform, Switch } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +11,7 @@ import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/context/ToastContext";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 import { ScreenBackground } from "@/src/components/ui";
+import { isSoundMuted, setSoundMuted } from "@/src/utils/sound";
 
 const PLANS = [
   { tier: "free", name: "Free", price: "$0", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
@@ -27,6 +28,12 @@ export default function Profile() {
   const [balInput, setBalInput] = useState(String(user?.account_balance ?? 10000));
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
+  const [soundOn, setSoundOn] = useState(!isSoundMuted());
+
+  const toggleSound = async (v: boolean) => {
+    setSoundOn(v);
+    await setSoundMuted(!v);
+  };
 
   const saveBalance = async () => {
     const v = parseFloat(balInput);
@@ -137,6 +144,18 @@ export default function Profile() {
           </Pressable>
         </View>
 
+        <Text style={styles.section}>Preferences</Text>
+        <View style={styles.settingsCard}>
+          <View style={styles.prefRow}>
+            <View style={styles.prefLeft}>
+              <Ionicons name={soundOn ? "volume-high" : "volume-mute"} size={20} color={colors.accent} />
+              <Text style={styles.prefLabel}>Sound Effects</Text>
+            </View>
+            <Switch testID="sound-toggle" value={soundOn} onValueChange={toggleSound}
+              trackColor={{ false: colors.surface3, true: colors.accent }} thumbColor={colors.onSurface} />
+          </View>
+        </View>
+
         <View style={styles.referCard}>
           <View style={styles.referHead}>
             <Ionicons name="gift" size={20} color={colors.brand} />
@@ -217,6 +236,9 @@ const styles = StyleSheet.create({
   rewardTxt: { color: colors.success, fontFamily: font.text, fontSize: fs.sm },
   section: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.md },
   settingsCard: { backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.xl, gap: spacing.sm },
+  prefRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  prefLeft: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  prefLabel: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   settingLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
   inlineRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   settingInput: { flex: 1, backgroundColor: colors.surface3, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },

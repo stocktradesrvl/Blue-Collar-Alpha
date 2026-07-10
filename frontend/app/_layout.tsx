@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as NavigationBar from "expo-navigation-bar";
+import { initSound } from "@/src/utils/sound";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
@@ -66,6 +67,7 @@ export default function RootLayout() {
 
   // Immersive full-screen: hide the Android system navigation bar.
   useEffect(() => {
+    initSound();
     if (Platform.OS !== "android") return;
     (async () => {
       try {
