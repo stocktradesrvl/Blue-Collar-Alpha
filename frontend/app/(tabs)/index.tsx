@@ -31,10 +31,12 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [tick, setTick] = useState(0);
   const [backdrop, setBackdrop] = useState<string | null>("cash");
+  const [lastTrade, setLastTrade] = useState<any>(null);
 
   const load = useCallback(async () => {
     try { setStats(await api.get("/dashboard/stats")); } catch {}
     try { setWeekly(await api.get("/dashboard/weekly")); } catch {}
+    try { setLastTrade(await api.get("/dashboard/last-trade")); } catch {}
     try {
       const b = await api.get("/payments/billing");
       const end = b?.subscription?.trial_end;
@@ -158,6 +160,48 @@ export default function Dashboard() {
               </Animated.View>
             )}
 
+            {lastTrade?.has_trade && (
+              <Animated.View entering={FadeInDown.duration(700).delay(320)}>
+                <Pressable testID="debrief-card" onPress={() => router.push(`/debrief/${lastTrade.trade.id}`)}>
+                  <GradientCard accent={A.accent} style={styles.debriefCard}>
+                    <View style={styles.debriefHead}>
+                      <View style={styles.debriefTitleRow}>
+                        <Ionicons name="sparkles" size={16} color={A.accent} />
+                        <Text style={styles.debriefTitle}>AI Trade Debrief</Text>
+                      </View>
+                      {lastTrade.trade.debrief ? (
+                        <View style={styles.debriefReady}><Ionicons name="checkmark-circle" size={13} color={colors.success} /><Text style={styles.debriefReadyTxt}>Ready</Text></View>
+                      ) : (
+                        <View style={[styles.debriefNew, { backgroundColor: A.accentTint }]}><Text style={[styles.debriefNewTxt, { color: A.accent }]}>NEW</Text></View>
+                      )}
+                    </View>
+                    <View style={styles.debriefTradeRow}>
+                      <Text style={styles.debriefSym}>{lastTrade.trade.symbol}</Text>
+                      <Text style={[styles.debriefPnl, { color: pnlColor(lastTrade.trade.pnl) }]}>{money(lastTrade.trade.pnl || 0)}</Text>
+                    </View>
+                    {lastTrade.trade.debrief?.summary ? (
+                      <Text style={styles.debriefSummary} numberOfLines={2}>{lastTrade.trade.debrief.summary}</Text>
+                    ) : (
+                      <Text style={styles.debriefSub}>Get a focused, trade-specific review from your AI coach.</Text>
+                    )}
+                    {lastTrade.trade.debrief?.mistake_tags?.length ? (
+                      <View style={styles.debriefTags}>
+                        {lastTrade.trade.debrief.mistake_tags.map((tag: string, i: number) => {
+                          const good = tag === "Good Discipline";
+                          const c = good ? colors.success : colors.error;
+                          return <View key={i} style={[styles.debriefTag, { backgroundColor: c + "1F" }]}><Text style={[styles.debriefTagTxt, { color: c }]}>{tag}</Text></View>;
+                        })}
+                      </View>
+                    ) : null}
+                    <View style={[styles.debriefCta, { backgroundColor: A.accent }]}>
+                      <Ionicons name={lastTrade.trade.debrief ? "eye" : "sparkles"} size={16} color={A.onAccent} />
+                      <Text style={[styles.debriefCtaTxt, { color: A.onAccent }]}>{lastTrade.trade.debrief ? "View Debrief" : "Generate Debrief"}</Text>
+                    </View>
+                  </GradientCard>
+                </Pressable>
+              </Animated.View>
+            )}
+
             <Animated.View entering={FadeInDown.duration(400).delay(180)} style={styles.grid}>
               <StatCard testID="stat-winrate" label="Win Rate" icon="trophy" value={`${stats.win_rate}%`} countTo={stats.win_rate} trigger={tick} format={(n) => `${n.toFixed(1)}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
               <StatCard testID="stat-pf" label="Profit Factor" icon="trending-up" value={`${stats.profit_factor}`} countTo={stats.profit_factor} trigger={tick} format={(n) => n.toFixed(2)} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
@@ -229,6 +273,24 @@ const styles = StyleSheet.create({
   rangeTxtActive: { color: colors.onBrand, fontFamily: font.text },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.md },
   weeklyCard: { marginBottom: spacing.md, gap: spacing.md, ...cardShadow },
+  debriefCard: { marginBottom: spacing.md, gap: spacing.sm, ...cardShadow },
+  debriefHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  debriefTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  debriefTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
+  debriefReady: { flexDirection: "row", alignItems: "center", gap: 3 },
+  debriefReadyTxt: { color: colors.success, fontFamily: font.text, fontSize: fs.sm },
+  debriefNew: { borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  debriefNewTxt: { fontFamily: font.displayBold, fontSize: fs.sm, letterSpacing: 1 },
+  debriefTradeRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  debriefSym: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
+  debriefPnl: { fontFamily: font.displayBold, fontSize: fs.lg },
+  debriefSummary: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.base, lineHeight: 20, fontStyle: "italic" },
+  debriefSub: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, lineHeight: 20 },
+  debriefTags: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  debriefTag: { borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  debriefTagTxt: { fontFamily: font.text, fontSize: fs.sm },
+  debriefCta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, borderRadius: radius.md, paddingVertical: spacing.md, marginTop: spacing.xs },
+  debriefCtaTxt: { fontFamily: font.displayBold, fontSize: fs.base },
   weeklyHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   weeklyTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   wrTrend: { flexDirection: "row", alignItems: "center", gap: 2, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },

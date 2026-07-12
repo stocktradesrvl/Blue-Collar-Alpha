@@ -58,6 +58,7 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 2. Add Stripe for real subscriptions.
 3. Options/futures-specific analysis fields.
 
-## Personalization (2026-06)
-- Dynamic accent-color theme: React Context (`src/context/AccentContext.tsx`) with 5 presets (Orange default, Gold, Green, Blue, Purple), persisted to AsyncStorage (`tm_accent`). Live-swaps app-wide (tab bar, FABs, gradient buttons, glows, chips, plan borders) without restart. Picker UI in Profile → Preferences. `useAccent()` hook exposes `{ theme, accentId, setAccentId }`.
+## Personalization (2026-06): React Context (`src/context/AccentContext.tsx`) with 5 presets (Orange default, Gold, Green, Blue, Purple), persisted to AsyncStorage (`tm_accent`). Live-swaps app-wide (tab bar, FABs, gradient buttons, glows, chips, plan borders) without restart. Picker UI in Profile → Preferences. `useAccent()` hook exposes `{ theme, accentId, setAccentId }`.
 - Dashboard backdrop picker (Cash/Gold/Charts) independent of accent (`src/appearance.ts`).
+
+## AI Trade Debrief (2026-06): Claude (anthropic claude-sonnet-4-6, Emergent LLM Key) generates a per-trade debrief. Backend: `POST /api/trades/{id}/debrief` (generates went_right[], watch_out[], mistake_tags[] from fixed set, summary; persisted to trade doc under `debrief`; cached, `?regenerate=true` to refresh); `GET /api/dashboard/last-trade`. Frontend: Dashboard card (preview + tags + View/Generate CTA) → `/debrief/[id]` screen (auto-generates if missing, regenerate button, accent-themed).

@@ -362,6 +362,75 @@ async def set_trade_taken(tid: str, inp: TakenIn, user=Depends(get_current_user)
     t = await db.trades.find_one({"id": tid})
     return clean_trade(t)
 
+# ---------- AI Trade Debrief ----------
+DEBRIEF_TAGS = ["FOMO", "Chased Entry", "No Stop", "Oversized", "Revenge Trade",
+                "Cut Winner Early", "Held Loser", "Overtraded", "Hesitated", "Good Discipline"]
+
+@api.get("/dashboard/last-trade")
+async def last_executed_trade(user=Depends(get_current_user)):
+    t = await db.trades.find_one({"user_id": user["id"], "taken": True}, sort=[("created_at", -1)])
+    if not t:
+        return {"has_trade": False}
+    return {"has_trade": True, "trade": {k: v for k, v in t.items() if k not in ("_id", "image_base64")}}
+
+@api.post("/trades/{tid}/debrief")
+async def trade_debrief(tid: str, regenerate: bool = False, user=Depends(get_current_user)):
+    t = await db.trades.find_one({"id": tid, "user_id": user["id"]})
+    if not t:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    if t.get("debrief") and not regenerate:
+        return t["debrief"]
+
+    ctx = {
+        "symbol": t.get("symbol"), "asset_type": t.get("asset_type"),
+        "direction": t.get("direction"), "entry": t.get("entry"), "exit": t.get("exit"),
+        "quantity": t.get("quantity"), "pnl": t.get("pnl"), "trade_time": t.get("trade_time"),
+        "setup": t.get("detected_setup"), "grade": t.get("setup_grade"),
+        "strategy_names": t.get("strategy_names"), "strategy_followed": t.get("strategy_followed"),
+        "rule_violations": t.get("rule_violations"), "advanced": t.get("advanced"),
+        "prior_summary": t.get("ai_summary"),
+    }
+    system = ("You are an elite trading coach doing a focused debrief on ONE trade. "
+              "Respond ONLY with a single valid JSON object, no markdown, no prose. "
+              f"mistake_tags MUST be chosen ONLY from this exact list: {json.dumps(DEBRIEF_TAGS)}. "
+              "If the trade was well executed with no clear mistakes, use ['Good Discipline'].")
+    prompt = (f"Here is one trade: {json.dumps(ctx)}. Return JSON with keys: "
+              "went_right (array of 1-3 short bullet strings), "
+              "watch_out (array of 1-3 short bullet strings — concrete, actionable improvements), "
+              "mistake_tags (array of 1-3 tags from the allowed list), "
+              "summary (one punchy coaching sentence, under 25 words). "
+              "Be specific and cite numbers from the trade where relevant.")
+    chat = llm(system, f"debrief-{user['id']}-{tid}", max_tokens=700)
+    try:
+        resp = await chat.send_message(UserMessage(text=prompt))
+    except Exception as e:
+        logger.error(f"debrief err {e}")
+        raise HTTPException(status_code=502, detail="AI debrief failed. Please try again.")
+    data = extract_json(resp)
+    if not data:
+        raise HTTPException(status_code=422, detail="Could not generate debrief. Try again.")
+
+    def slist(v, n=3):
+        if isinstance(v, list):
+            return [str(x).strip() for x in v if str(x).strip()][:n]
+        if v:
+            return [str(v).strip()]
+        return []
+
+    tags = [x for x in slist(data.get("mistake_tags")) if x in DEBRIEF_TAGS]
+    if not tags:
+        clean = (t.get("pnl") or 0) >= 0 and not t.get("rule_violations")
+        tags = ["Good Discipline"] if clean else []
+    debrief = {
+        "went_right": slist(data.get("went_right")),
+        "watch_out": slist(data.get("watch_out")),
+        "mistake_tags": tags,
+        "summary": str(data.get("summary") or "").strip(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.trades.update_one({"id": tid, "user_id": user["id"]}, {"$set": {"debrief": debrief}})
+    return debrief
+
 @api.post("/trades/analyze-chart")
 async def analyze_chart(inp: ScreenshotIn, user=Depends(get_current_user)):
     if TIER_LEVEL.get(effective_tier(user), 0) < 1:
