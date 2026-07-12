@@ -62,3 +62,5 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 - Dashboard backdrop picker (Cash/Gold/Charts) independent of accent (`src/appearance.ts`).
 
 ## AI Trade Debrief (2026-06): Claude (anthropic claude-sonnet-4-6, Emergent LLM Key) generates a per-trade debrief. Backend: `POST /api/trades/{id}/debrief` (generates went_right[], watch_out[], mistake_tags[] from fixed set, summary; persisted to trade doc under `debrief`; cached, `?regenerate=true` to refresh); `GET /api/dashboard/last-trade`. Frontend: Dashboard card (preview + tags + View/Generate CTA) → `/debrief/[id]` screen (auto-generates if missing, regenerate button, accent-themed).
+
+## Mistake Trends (2026-06): `GET /api/dashboard/mistake-trends?window=30|all` aggregates debrief `mistake_tags` across trades → per-tag {count, total pnl}, ranked by frequency; excludes "Good Discipline" (returned as `good_count`). Frontend: Dashboard card (30D/All toggle, top 3 habits w/ frequency bars + $ P&L, "See all" → `/mistakes` full screen). Tested with 6 debriefed trades.

@@ -32,11 +32,18 @@ export default function Dashboard() {
   const [tick, setTick] = useState(0);
   const [backdrop, setBackdrop] = useState<string | null>("cash");
   const [lastTrade, setLastTrade] = useState<any>(null);
+  const [mistakes, setMistakes] = useState<any>(null);
+  const [mWindow, setMWindow] = useState<"30" | "all">("30");
+
+  const loadMistakes = useCallback(async (w: "30" | "all") => {
+    try { setMistakes(await api.get(`/dashboard/mistake-trends?window=${w}`)); } catch {}
+  }, []);
 
   const load = useCallback(async () => {
     try { setStats(await api.get("/dashboard/stats")); } catch {}
     try { setWeekly(await api.get("/dashboard/weekly")); } catch {}
     try { setLastTrade(await api.get("/dashboard/last-trade")); } catch {}
+    loadMistakes(mWindow);
     try {
       const b = await api.get("/payments/billing");
       const end = b?.subscription?.trial_end;
@@ -47,7 +54,7 @@ export default function Dashboard() {
       } else setTrial(null);
     } catch {}
     setLoading(false);
-  }, []);
+  }, [mWindow, loadMistakes]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useFocusEffect(useCallback(() => {
@@ -202,6 +209,51 @@ export default function Dashboard() {
               </Animated.View>
             )}
 
+            {mistakes?.total_debriefed > 0 && (
+              <Animated.View entering={FadeInDown.duration(700).delay(360)}>
+                <GradientCard accent={colors.error} style={styles.debriefCard}>
+                  <View style={styles.debriefHead}>
+                    <View style={styles.debriefTitleRow}>
+                      <Ionicons name="trending-down" size={16} color={colors.error} />
+                      <Text style={styles.debriefTitle}>Mistake Trends</Text>
+                    </View>
+                    <View style={styles.mToggle}>
+                      {(["30", "all"] as const).map((w) => (
+                        <Pressable key={w} testID={`mistake-window-${w}`} onPress={() => setMWindow(w)} style={[styles.mSeg, mWindow === w && { backgroundColor: A.accent }]}>
+                          <Text style={[styles.mSegTxt, mWindow === w && { color: A.onAccent }]}>{w === "30" ? "30D" : "All"}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                  {(mistakes.tags?.length || 0) === 0 ? (
+                    <Text style={styles.debriefSub}>No mistakes flagged{mWindow === "30" ? " in the last 30 days" : ""}.{mistakes.good_count > 0 ? ` ${mistakes.good_count} clean trade${mistakes.good_count > 1 ? "s" : ""}. ` : " "}Keep it up!</Text>
+                  ) : (
+                    <>
+                      {mistakes.tags.slice(0, 3).map((row: any) => {
+                        const mx = mistakes.tags[0].count || 1;
+                        return (
+                          <View key={row.tag} style={styles.mRow}>
+                            <View style={styles.debriefTradeRow}>
+                              <Text style={styles.mTag}>{row.tag}</Text>
+                              <Text style={[styles.debriefPnl, { color: pnlColor(row.pnl) }]}>{money(row.pnl)}</Text>
+                            </View>
+                            <View style={styles.mBarTrack}>
+                              <View style={[styles.mBarFill, { width: `${Math.max((row.count / mx) * 100, 6)}%` }]} />
+                            </View>
+                            <Text style={styles.mCount}>{row.count}× {row.count === 1 ? "trade" : "trades"}</Text>
+                          </View>
+                        );
+                      })}
+                      <Pressable testID="mistakes-see-all" style={styles.mSeeAll} onPress={() => router.push(`/mistakes?window=${mWindow}`)}>
+                        <Text style={[styles.mSeeAllTxt, { color: A.accent }]}>See all {mistakes.tags.length} habit{mistakes.tags.length > 1 ? "s" : ""}</Text>
+                        <Ionicons name="chevron-forward" size={16} color={A.accent} />
+                      </Pressable>
+                    </>
+                  )}
+                </GradientCard>
+              </Animated.View>
+            )}
+
             <Animated.View entering={FadeInDown.duration(400).delay(180)} style={styles.grid}>
               <StatCard testID="stat-winrate" label="Win Rate" icon="trophy" value={`${stats.win_rate}%`} countTo={stats.win_rate} trigger={tick} format={(n) => `${n.toFixed(1)}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
               <StatCard testID="stat-pf" label="Profit Factor" icon="trending-up" value={`${stats.profit_factor}`} countTo={stats.profit_factor} trigger={tick} format={(n) => n.toFixed(2)} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
@@ -291,6 +343,16 @@ const styles = StyleSheet.create({
   debriefTagTxt: { fontFamily: font.text, fontSize: fs.sm },
   debriefCta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, borderRadius: radius.md, paddingVertical: spacing.md, marginTop: spacing.xs },
   debriefCtaTxt: { fontFamily: font.displayBold, fontSize: fs.base },
+  mToggle: { flexDirection: "row", backgroundColor: colors.surface3, borderRadius: radius.sm, padding: 2 },
+  mSeg: { paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.sm - 2 },
+  mSegTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
+  mRow: { gap: 4, marginTop: spacing.xs },
+  mTag: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.base },
+  mBarTrack: { height: 6, borderRadius: radius.pill, backgroundColor: colors.surface3, overflow: "hidden" },
+  mBarFill: { height: 6, borderRadius: radius.pill, backgroundColor: colors.error },
+  mCount: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
+  mSeeAll: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2, paddingTop: spacing.sm },
+  mSeeAllTxt: { fontFamily: font.display, fontSize: fs.base },
   weeklyHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   weeklyTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   wrTrend: { flexDirection: "row", alignItems: "center", gap: 2, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },

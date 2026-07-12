@@ -431,6 +431,36 @@ async def trade_debrief(tid: str, regenerate: bool = False, user=Depends(get_cur
     await db.trades.update_one({"id": tid, "user_id": user["id"]}, {"$set": {"debrief": debrief}})
     return debrief
 
+@api.get("/dashboard/mistake-trends")
+async def mistake_trends(window: str = "all", user=Depends(get_current_user)):
+    q = {"user_id": user["id"], "debrief": {"$exists": True}}
+    if window == "30":
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        q["created_at"] = {"$gte": cutoff}
+    trades = await db.trades.find(q).to_list(2000)
+    agg = {}  # tag -> {count, pnl}
+    good = 0
+    for t in trades:
+        d = t.get("debrief") or {}
+        tags = d.get("mistake_tags") or []
+        pnl = t.get("pnl") or 0
+        seen = set()
+        for tag in tags:
+            if tag == "Good Discipline":
+                good += 1
+                continue
+            if tag in seen:
+                continue
+            seen.add(tag)
+            a = agg.setdefault(tag, {"count": 0, "pnl": 0.0})
+            a["count"] += 1
+            a["pnl"] += pnl
+    ranked = sorted(
+        [{"tag": k, "count": v["count"], "pnl": round(v["pnl"], 2)} for k, v in agg.items()],
+        key=lambda x: (-x["count"], x["pnl"]),
+    )
+    return {"window": window, "total_debriefed": len(trades), "good_count": good, "tags": ranked}
+
 @api.post("/trades/analyze-chart")
 async def analyze_chart(inp: ScreenshotIn, user=Depends(get_current_user)):
     if TIER_LEVEL.get(effective_tier(user), 0) < 1:
