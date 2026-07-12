@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, useWindowDimensions, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -18,6 +18,21 @@ import { BACKDROP_KEY, backdropSource } from "@/src/appearance";
 
 const RANGES: Record<string, number> = { "1W": 8, "1M": 31, ALL: 9999 };
 
+// Turn a mistake tag into a natural coaching phrase for the habit alert.
+const HABIT_PHRASES: Record<string, string> = {
+  "FOMO": "traded on FOMO",
+  "Chased Entry": "chased entries",
+  "No Stop": "traded without a stop",
+  "Oversized": "oversized positions",
+  "Revenge Trade": "revenge traded",
+  "Cut Winner Early": "cut winners early",
+  "Held Loser": "held losers too long",
+  "Overtraded": "overtraded",
+  "Hesitated": "hesitated on entries",
+};
+const HABIT_DISMISS_KEY = "tm_habit_alert_dismissed";
+
+
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -34,15 +49,22 @@ export default function Dashboard() {
   const [lastTrade, setLastTrade] = useState<any>(null);
   const [mistakes, setMistakes] = useState<any>(null);
   const [mWindow, setMWindow] = useState<"30" | "all">("30");
+  const [alert30, setAlert30] = useState<any>(null);
+  const [dismissedSig, setDismissedSig] = useState<string | null>(null);
 
   const loadMistakes = useCallback(async (w: "30" | "all") => {
     try { setMistakes(await api.get(`/dashboard/mistake-trends?window=${w}`)); } catch {}
+  }, []);
+
+  useEffect(() => {
+    storage.getItem<string>(HABIT_DISMISS_KEY, "").then((v) => setDismissedSig(v || null));
   }, []);
 
   const load = useCallback(async () => {
     try { setStats(await api.get("/dashboard/stats")); } catch {}
     try { setWeekly(await api.get("/dashboard/weekly")); } catch {}
     try { setLastTrade(await api.get("/dashboard/last-trade")); } catch {}
+    try { setAlert30(await api.get("/dashboard/mistake-trends?window=30")); } catch {}
     loadMistakes(mWindow);
     try {
       const b = await api.get("/payments/billing");
@@ -72,6 +94,17 @@ export default function Dashboard() {
 
   const curve = stats?.equity_curve || [];
   const shownCurve = range === "ALL" ? curve : curve.slice(-RANGES[range]);
+
+  const topHabit = useMemo(() => {
+    const tags = alert30?.tags || [];
+    return tags.find((t: any) => t.count >= 3) || null;
+  }, [alert30]);
+  const habitSig = topHabit ? `${topHabit.tag}:${topHabit.count}` : null;
+  const showHabitAlert = !!topHabit && dismissedSig !== habitSig;
+  const dismissHabit = useCallback(() => {
+    setDismissedSig(habitSig);
+    if (habitSig) storage.setItem(HABIT_DISMISS_KEY, habitSig);
+  }, [habitSig]);
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.brand} size="large" /></View>;
 
@@ -108,6 +141,20 @@ export default function Dashboard() {
             </View>
           </View>
         </Animated.View>
+
+        {!empty && showHabitAlert && (
+          <Animated.View entering={FadeInDown.duration(600)} style={styles.habitAlert}>
+            <View style={styles.habitIcon}><Ionicons name="pulse" size={18} color={colors.warning} /></View>
+            <Pressable testID="habit-alert" style={{ flex: 1 }} onPress={() => router.push("/mistakes?window=30")}>
+              <Text style={styles.habitTxt}>
+                You've <Text style={styles.habitBold}>{HABIT_PHRASES[topHabit.tag] || topHabit.tag.toLowerCase()}</Text> {topHabit.count}× in the last 30 days{topHabit.pnl < 0 ? ` · ${money(topHabit.pnl)}` : ""}
+              </Text>
+            </Pressable>
+            <Pressable testID="habit-alert-dismiss" hitSlop={12} onPress={dismissHabit} style={styles.habitClose}>
+              <Ionicons name="close" size={18} color={colors.onSurface3} />
+            </Pressable>
+          </Animated.View>
+        )}
 
         {empty ? (
           <View style={styles.emptyBox}>
@@ -353,6 +400,11 @@ const styles = StyleSheet.create({
   mCount: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
   mSeeAll: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2, paddingTop: spacing.sm },
   mSeeAllTxt: { fontFamily: font.display, fontSize: fs.base },
+  habitAlert: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.warning + "18", borderRadius: radius.md, borderWidth: 1, borderColor: colors.warning + "55", paddingHorizontal: spacing.md, paddingVertical: spacing.md, marginBottom: spacing.lg },
+  habitIcon: { width: 32, height: 32, borderRadius: radius.pill, backgroundColor: colors.warning + "22", alignItems: "center", justifyContent: "center" },
+  habitTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.base, lineHeight: 19 },
+  habitBold: { fontFamily: font.displayBold, color: colors.warning },
+  habitClose: { padding: spacing.xs },
   weeklyHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   weeklyTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   wrTrend: { flexDirection: "row", alignItems: "center", gap: 2, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
