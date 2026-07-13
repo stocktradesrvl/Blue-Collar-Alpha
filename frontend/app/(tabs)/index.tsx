@@ -157,11 +157,25 @@ export default function Dashboard() {
         )}
 
         {empty ? (
-          <View style={styles.emptyBox}>
-            <Ionicons name="cloud-upload-outline" size={48} color={colors.brand} />
-            <Text style={styles.emptyTitle}>No trades yet</Text>
-            <Text style={styles.emptySub}>Upload a screenshot of your trade and let the AI coach analyze it.</Text>
-          </View>
+          <>
+            <View style={styles.emptyBox}>
+              <Ionicons name="cloud-upload-outline" size={48} color={colors.brand} />
+              <Text style={styles.emptyTitle}>No trades yet</Text>
+              <Text style={styles.emptySub}>Upload a screenshot of your trade and let the AI coach analyze it.</Text>
+            </View>
+            <Animated.View entering={FadeInDown.duration(500).delay(200)} style={{ marginTop: spacing.lg }}>
+              <Pressable testID="analyze-chart-btn-empty" style={styles.chartBtn} onPress={() => router.push("/analyze")}>
+                <Ionicons name="analytics" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>Analyze a Chart Screenshot</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+              <Pressable testID="pretrade-btn-empty" style={styles.chartBtn} onPress={() => router.push("/pretrade")}>
+                <Ionicons name="ribbon" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>Grade a Potential Trade</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+            </Animated.View>
+          </>
         ) : (
           <>
             <Animated.View entering={FadeInDown.duration(700).delay(200)}>
