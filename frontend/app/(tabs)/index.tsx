@@ -214,6 +214,24 @@ export default function Dashboard() {
               </Animated.View>
             )}
 
+            <Animated.View entering={FadeInDown.duration(500).delay(240)} style={{ marginBottom: spacing.md }}>
+              <Pressable testID="daily-report-btn" style={styles.reportBtn} onPress={() => router.push("/report")}>
+                <Ionicons name="document-text" size={20} color={colors.brand} />
+                <Text style={styles.reportTxt}>View AI Session Report</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+              <Pressable testID="analyze-chart-btn" style={styles.chartBtn} onPress={() => router.push("/analyze")}>
+                <Ionicons name="analytics" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>Analyze a Chart Screenshot</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+              <Pressable testID="pretrade-btn" style={styles.chartBtn} onPress={() => router.push("/pretrade")}>
+                <Ionicons name="ribbon" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>Grade a Potential Trade</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+            </Animated.View>
+
             {lastTrade?.has_trade && (
               <Animated.View entering={FadeInDown.duration(700).delay(320)}>
                 <Pressable testID="debrief-card" onPress={() => router.push(`/debrief/${lastTrade.trade.id}`)}>
@@ -318,22 +336,6 @@ export default function Dashboard() {
                 <Text style={styles.infoVal} numberOfLines={1}>{stats.best_hour || "—"}</Text>
               </View>
             </View>
-
-            <Pressable testID="daily-report-btn" style={styles.reportBtn} onPress={() => router.push("/report")}>
-              <Ionicons name="document-text" size={20} color={colors.brand} />
-              <Text style={styles.reportTxt}>View AI Session Report</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
-            </Pressable>
-            <Pressable testID="analyze-chart-btn" style={styles.chartBtn} onPress={() => router.push("/analyze")}>
-              <Ionicons name="analytics" size={20} color={colors.onSurface} />
-              <Text style={styles.chartBtnTxt}>Analyze a Chart Screenshot</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
-            </Pressable>
-            <Pressable testID="pretrade-btn" style={styles.chartBtn} onPress={() => router.push("/pretrade")}>
-              <Ionicons name="ribbon" size={20} color={colors.onSurface} />
-              <Text style={styles.chartBtnTxt}>Grade a Potential Trade</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
-            </Pressable>
           </>
         )}
       </ScrollView>
