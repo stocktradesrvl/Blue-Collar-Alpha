@@ -170,6 +170,14 @@ export default function Profile() {
               trackColor={{ false: colors.surface3, true: A.accent }} thumbColor={colors.onSurface} />
           </View>
 
+          <Pressable testID="open-soundlab" style={styles.soundLabRow} onPress={() => router.push("/soundlab")}>
+            <View style={styles.prefLeft}>
+              <Ionicons name="musical-notes" size={20} color={A.accent} />
+              <Text style={styles.soundLabTxt}>Sound Lab — preview &amp; pick sounds</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+          </Pressable>
+
           <View style={styles.prefDivider} />
           <Text style={styles.prefLabel}>Dashboard Backdrop</Text>
           <View style={styles.backdropRow}>
@@ -287,6 +295,8 @@ const styles = StyleSheet.create({
   prefLeft: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   prefLabel: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   prefDivider: { height: 1, backgroundColor: colors.divider, marginVertical: spacing.md },
+  soundLabRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
+  soundLabTxt: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.base },
   backdropRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
   backdropItem: { flex: 1, alignItems: "center", gap: spacing.xs },
   backdropThumb: { width: "100%", aspectRatio: 1.3, borderRadius: radius.md, overflow: "hidden", borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface3 },

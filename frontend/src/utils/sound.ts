@@ -9,6 +9,19 @@ const SOURCES: Record<string, any> = {
   refresh: require("@/assets/sounds/refresh.wav"),
 };
 
+// Candidate sounds for the in-app Sound Lab (auditioning). Loaded lazily.
+const LAB_SOURCES: Record<string, any> = {
+  cash_a: require("@/assets/sounds/lab/cash_a.wav"),
+  cash_b: require("@/assets/sounds/lab/cash_b.wav"),
+  cash_c: require("@/assets/sounds/lab/cash_c.wav"),
+  coin_a: require("@/assets/sounds/lab/coin_a.wav"),
+  coin_b: require("@/assets/sounds/lab/coin_b.wav"),
+  coin_c: require("@/assets/sounds/lab/coin_c.wav"),
+  refresh_a: require("@/assets/sounds/lab/refresh_a.wav"),
+  refresh_b: require("@/assets/sounds/lab/refresh_b.wav"),
+  refresh_c: require("@/assets/sounds/lab/refresh_c.wav"),
+};
+
 let muted = false;
 let ready = false;
 const players: Record<string, AudioPlayer> = {};
@@ -41,4 +54,21 @@ export function playSound(name: "chaching" | "coin" | "refresh") {
   const p = players[name];
   if (!p) return;
   try { p.seekTo(0); p.play(); } catch { /* no-op */ }
+}
+
+// Audition a candidate sound in the Sound Lab. Plays regardless of mute so
+// the user can always hear it while picking.
+let labPlayer: AudioPlayer | null = null;
+export async function previewSound(key: string) {
+  const src = LAB_SOURCES[key];
+  if (!src) return;
+  try {
+    await setAudioModeAsync({ playsInSilentMode: true });
+  } catch { /* no-op */ }
+  try {
+    if (labPlayer) { labPlayer.remove(); labPlayer = null; }
+    labPlayer = createAudioPlayer(src);
+    labPlayer.seekTo(0);
+    labPlayer.play();
+  } catch { /* no-op */ }
 }
