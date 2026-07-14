@@ -9,17 +9,17 @@ const SOURCES: Record<string, any> = {
   refresh: require("@/assets/sounds/refresh.wav"),
 };
 
-// Candidate sounds for the in-app Sound Lab (auditioning). Loaded lazily.
+// Candidate sounds for the in-app Sound Lab (auditioning). Real recordings.
 const LAB_SOURCES: Record<string, any> = {
-  cash_a: require("@/assets/sounds/lab/cash_a.wav"),
-  cash_b: require("@/assets/sounds/lab/cash_b.wav"),
-  cash_c: require("@/assets/sounds/lab/cash_c.wav"),
-  coin_a: require("@/assets/sounds/lab/coin_a.wav"),
-  coin_b: require("@/assets/sounds/lab/coin_b.wav"),
-  coin_c: require("@/assets/sounds/lab/coin_c.wav"),
-  refresh_a: require("@/assets/sounds/lab/refresh_a.wav"),
-  refresh_b: require("@/assets/sounds/lab/refresh_b.wav"),
-  refresh_c: require("@/assets/sounds/lab/refresh_c.wav"),
+  bigwin_a: require("@/assets/sounds/lab/bigwin_a.mp3"),
+  bigwin_b: require("@/assets/sounds/lab/bigwin_b.mp3"),
+  bigwin_c: require("@/assets/sounds/lab/bigwin_c.mp3"),
+  coin_a: require("@/assets/sounds/lab/coin_a2.mp3"),
+  coin_b: require("@/assets/sounds/lab/coin_b2.mp3"),
+  coin_c: require("@/assets/sounds/lab/coin_c2.mp3"),
+  refresh_a: require("@/assets/sounds/lab/refresh_a2.mp3"),
+  refresh_b: require("@/assets/sounds/lab/refresh_b2.mp3"),
+  refresh_c: require("@/assets/sounds/lab/refresh_c2.mp3"),
 };
 
 let muted = false;

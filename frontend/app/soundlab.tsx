@@ -17,9 +17,9 @@ const GROUPS: Group[] = [
     icon: "cash",
     when: "Plays on a big winning trade",
     variants: [
-      { key: "cash_a", label: "A · Register Ding", desc: "Classic cash-register ka-ching" },
-      { key: "cash_b", label: "B · Arcade Win", desc: "Rising victory arpeggio" },
-      { key: "cash_c", label: "C · Sparkle Chimes", desc: "Shimmering bell cascade" },
+      { key: "bigwin_a", label: "A · Coin Win Jingle", desc: "Bright bell + coins ka-ching" },
+      { key: "bigwin_b", label: "B · Cash Win Chime", desc: "Uplifting cash notification" },
+      { key: "bigwin_c", label: "C · Gold Payout", desc: "Melodic golden payout" },
     ],
   },
   {
@@ -27,9 +27,9 @@ const GROUPS: Group[] = [
     icon: "logo-usd",
     when: "Plays when you save a profitable trade",
     variants: [
-      { key: "coin_a", label: "A · Single Ting", desc: "One crisp coin chime" },
-      { key: "coin_b", label: "B · Coin Bounce", desc: "Two quick rising tings" },
-      { key: "coin_c", label: "C · Metallic Clink", desc: "Bright metallic coin" },
+      { key: "coin_a", label: "A · Clinking Coins", desc: "Real coins clinking" },
+      { key: "coin_b", label: "B · Gold Coin Prize", desc: "Single gold coin chime" },
+      { key: "coin_c", label: "C · Coins Drop", desc: "Coins dropping" },
     ],
   },
   {
@@ -37,9 +37,9 @@ const GROUPS: Group[] = [
     icon: "refresh",
     when: "Plays on pull-to-refresh",
     variants: [
-      { key: "refresh_a", label: "A · Swoosh", desc: "Soft airy sweep" },
-      { key: "refresh_b", label: "B · Bubble Pop", desc: "Quick playful pop" },
-      { key: "refresh_c", label: "C · Two-note Blip", desc: "Gentle double blip" },
+      { key: "refresh_a", label: "A · Key Tap", desc: "Crisp cash-machine key tap" },
+      { key: "refresh_b", label: "B · Money Bag Drop", desc: "Soft money bag thud" },
+      { key: "refresh_c", label: "C · Coins Shuffle", desc: "Quick coin handling" },
     ],
   },
 ];
