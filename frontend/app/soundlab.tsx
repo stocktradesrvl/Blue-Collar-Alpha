@@ -6,16 +6,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, font, fs, glow } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
-import { previewSound } from "@/src/utils/sound";
+import { previewSound, selectSound, getSelectedSounds, type SoundCategory } from "@/src/utils/sound";
 
 type Variant = { key: string; label: string; desc: string };
-type Group = { title: string; icon: string; when: string; variants: Variant[] };
+type Group = { title: string; icon: string; when: string; category: SoundCategory; variants: Variant[] };
 
 const GROUPS: Group[] = [
   {
     title: "Big Win / Cash",
     icon: "cash",
     when: "Plays on a big winning trade",
+    category: "bigwin",
     variants: [
       { key: "bigwin_a", label: "A · Coin Win Jingle", desc: "Bright bell + coins ka-ching" },
       { key: "bigwin_b", label: "B · Cash Win Chime", desc: "Uplifting cash notification" },
@@ -26,6 +27,7 @@ const GROUPS: Group[] = [
     title: "Coin — Profitable Trade",
     icon: "logo-usd",
     when: "Plays when you save a profitable trade",
+    category: "coin",
     variants: [
       { key: "coin_a", label: "A · Clinking Coins", desc: "Real coins clinking" },
       { key: "coin_b", label: "B · Gold Coin Prize", desc: "Single gold coin chime" },
@@ -36,6 +38,7 @@ const GROUPS: Group[] = [
     title: "Refresh",
     icon: "refresh",
     when: "Plays on pull-to-refresh",
+    category: "refresh",
     variants: [
       { key: "refresh_a", label: "A · Key Tap", desc: "Crisp cash-machine key tap" },
       { key: "refresh_b", label: "B · Money Bag Drop", desc: "Soft money bag thud" },
@@ -49,11 +52,14 @@ export default function SoundLab() {
   const router = useRouter();
   const A = useAccent().theme;
   const [playing, setPlaying] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Record<string, string>>(getSelectedSounds());
 
-  const play = (key: string) => {
+  const choose = (category: SoundCategory, key: string) => {
     setPlaying(key);
     previewSound(key);
-    setTimeout(() => setPlaying((p) => (p === key ? null : p)), 900);
+    selectSound(category, key);
+    setSelected((s) => ({ ...s, [category]: key }));
+    setTimeout(() => setPlaying((p) => (p === key ? null : p)), 1200);
   };
 
   return (
@@ -68,7 +74,7 @@ export default function SoundLab() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + 40, gap: spacing.lg }}>
-        <Text style={styles.intro}>Tap any option to hear it. Once you pick your favorite of each, tell me the letters (e.g. "A, B, C") and I'll set them as your sounds.</Text>
+        <Text style={styles.intro}>Tap any option to hear it — and it instantly becomes your sound for that action. Your pick is saved automatically.</Text>
 
         {GROUPS.map((g) => (
           <View key={g.title} style={styles.group}>
@@ -82,22 +88,30 @@ export default function SoundLab() {
               </View>
             </View>
             {g.variants.map((v) => {
-              const active = playing === v.key;
+              const isPlaying = playing === v.key;
+              const isChosen = selected[g.category] === v.key;
               return (
                 <Pressable
                   key={v.key}
                   testID={`play-${v.key}`}
-                  onPress={() => play(v.key)}
-                  style={[styles.row, active && { borderColor: A.accent, ...glow(A.accent, 0.35) }]}
+                  onPress={() => choose(g.category, v.key)}
+                  style={[styles.row, isChosen && { borderColor: A.accent, ...glow(A.accent, 0.35) }]}
                 >
-                  <View style={[styles.playBtn, { backgroundColor: active ? A.accent : colors.surface3 }]}>
-                    <Ionicons name={active ? "volume-high" : "play"} size={18} color={active ? A.onAccent : colors.onSurface} />
+                  <View style={[styles.playBtn, { backgroundColor: isPlaying || isChosen ? A.accent : colors.surface3 }]}>
+                    <Ionicons name={isPlaying ? "volume-high" : "play"} size={18} color={isPlaying || isChosen ? A.onAccent : colors.onSurface} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowLabel}>{v.label}</Text>
                     <Text style={styles.rowDesc}>{v.desc}</Text>
                   </View>
-                  <Ionicons name="play-circle-outline" size={22} color={colors.onSurface3} />
+                  {isChosen ? (
+                    <View style={[styles.chosenPill, { backgroundColor: A.accentTint }]}>
+                      <Ionicons name="checkmark-circle" size={15} color={A.accent} />
+                      <Text style={[styles.chosenTxt, { color: A.accent }]}>Yours</Text>
+                    </View>
+                  ) : (
+                    <Ionicons name="play-circle-outline" size={22} color={colors.onSurface3} />
+                  )}
                 </Pressable>
               );
             })}
@@ -123,4 +137,6 @@ const styles = StyleSheet.create({
   playBtn: { width: 40, height: 40, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
   rowLabel: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.base },
   rowDesc: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
+  chosenPill: { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 3 },
+  chosenTxt: { fontFamily: font.displayBold, fontSize: fs.sm },
 });
