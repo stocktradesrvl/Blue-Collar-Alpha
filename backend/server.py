@@ -33,7 +33,7 @@ BACKEND_URL = os.environ.get('EXPO_BACKEND_URL') or ''
 PROMO_ACTIVE = True
 STRIPE_PACKAGES = {
     "pro": {"name": "Blue Collar Alpha Pro", "amount": 1799, "promo_amount": 999, "trial_days": 0},
-    "premium": {"name": "Blue Collar Alpha Premium", "amount": 2899, "promo_amount": 1499, "trial_days": 0},
+    "premium": {"name": "Blue Collar Alpha Premium", "amount": 2899, "promo_amount": 1499, "trial_days": 7},
 }
 _promo_coupons: dict = {}  # cache: off_cents -> coupon id
 ALGO = "HS256"

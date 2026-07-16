@@ -20,7 +20,7 @@ import { BACKDROP_KEY, BACKDROPS } from "@/src/appearance";
 const PLANS = [
   { tier: "free", name: "Free", price: "$0", promo: "", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
   { tier: "pro", name: "Pro", price: "$17.99/mo", promo: "🎉 First month just $9.99", features: ["Unlimited trades", "Chart screenshot analysis", "Setup grading A–F", "Strategy rule checks", "Pre-Trade Grader"] },
-  { tier: "premium", name: "Premium", price: "$28.99/mo", promo: "🎉 First month just $14.99", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
+  { tier: "premium", name: "Premium", price: "$28.99/mo", promo: "🎉 7-day free trial, then $14.99 first month", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
 ];
 
 export default function Profile() {
@@ -243,6 +243,11 @@ export default function Profile() {
           const active = user?.subscription_tier === p.tier;
           return (
             <View key={p.tier} style={[styles.plan, active && [styles.planActive, { borderColor: A.accent, shadowColor: A.accent }]]}>
+              {p.promo ? (
+                <View style={styles.ribbon} pointerEvents="none">
+                  <Text style={styles.ribbonTxt}>LAUNCH DEAL</Text>
+                </View>
+              ) : null}
               <View style={styles.planTop}>
                 <View style={styles.planNameWrap}>
                   <Text style={styles.planName}>{p.name}</Text>
@@ -318,7 +323,9 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.divider, marginVertical: spacing.sm },
   billingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
   billingTxt: { flex: 1, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
-  plan: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },
+  plan: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.sm, overflow: "hidden", position: "relative" },
+  ribbon: { position: "absolute", top: 16, right: -30, width: 128, transform: [{ rotate: "45deg" }], backgroundColor: colors.success, alignItems: "center", paddingVertical: 3, ...glow(colors.success, 0.5) },
+  ribbonTxt: { color: "#04210F", fontFamily: font.displayBold, fontSize: 10, letterSpacing: 1 },
   planActive: { borderColor: colors.accent, ...glow(colors.accent, 0.3) },
   planTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: spacing.xs },
   planNameWrap: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexShrink: 1 },
