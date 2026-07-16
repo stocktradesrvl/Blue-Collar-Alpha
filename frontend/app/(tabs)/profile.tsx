@@ -18,9 +18,9 @@ import { storage } from "@/src/utils/storage";
 import { BACKDROP_KEY, BACKDROPS } from "@/src/appearance";
 
 const PLANS = [
-  { tier: "free", name: "Free", price: "$0", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
-  { tier: "pro", name: "Pro", price: "$19.99/mo", features: ["Unlimited trades", "Chart screenshot analysis", "Setup grading A–F", "Strategy rule checks", "Pre-Trade Grader"] },
-  { tier: "premium", name: "Premium", price: "$49.99/mo", badge: "7-day free trial", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
+  { tier: "free", name: "Free", price: "$0", promo: "", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
+  { tier: "pro", name: "Pro", price: "$17.99/mo", promo: "🎉 First month just $9.99", features: ["Unlimited trades", "Chart screenshot analysis", "Setup grading A–F", "Strategy rule checks", "Pre-Trade Grader"] },
+  { tier: "premium", name: "Premium", price: "$28.99/mo", promo: "🎉 First month just $14.99", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
 ];
 
 export default function Profile() {
@@ -112,7 +112,7 @@ export default function Profile() {
     if (!code) return;
     try {
       await Share.share({
-        message: `I'm using Blue Collar Strategy Guide — an AI trading coach that reviews your trades from screenshots. Sign up with my code ${code} and we both get 20 bonus trades. 📈`,
+        message: `I'm using Blue Collar Alpha — an AI trading coach that reviews your trades from screenshots. Sign up with my code ${code} and we both get 20 bonus trades. 📈`,
       });
     } catch {}
   };
@@ -246,10 +246,12 @@ export default function Profile() {
               <View style={styles.planTop}>
                 <View style={styles.planNameWrap}>
                   <Text style={styles.planName}>{p.name}</Text>
-                  {p.badge ? <View style={styles.trialBadge}><Text style={styles.trialTxt}>{p.badge}</Text></View> : null}
                 </View>
                 <Text style={styles.planPrice}>{p.price}</Text>
               </View>
+              {p.promo ? (
+                <View style={styles.promoBadge}><Text style={styles.promoTxt}>{p.promo}</Text></View>
+              ) : null}
               {p.features.map((f) => (
                 <View key={f} style={styles.feat}><Ionicons name="checkmark" size={16} color={colors.success} /><Text style={styles.featTxt}>{f}</Text></View>
               ))}
@@ -323,6 +325,8 @@ const styles = StyleSheet.create({
   planName: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["2xl"] },
   trialBadge: { backgroundColor: colors.success + "22", borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   trialTxt: { color: colors.success, fontFamily: font.text, fontSize: fs.sm },
+  promoBadge: { alignSelf: "flex-start", backgroundColor: colors.success + "1F", borderWidth: 1, borderColor: colors.success + "55", borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3, marginBottom: spacing.sm },
+  promoTxt: { color: colors.success, fontFamily: font.displayBold, fontSize: fs.sm },
   planPrice: { color: colors.brand, fontFamily: font.displayBold, fontSize: fs.xl },
   feat: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   featTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },

@@ -29,7 +29,7 @@ export default function Register() {
 
   return (
     <View style={styles.flex}>
-      <Image source={require("../../assets/images/icon.png")} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <Image source={require("../../assets/images/money-bg.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" />
       <LinearGradient
         colors={["rgba(10,10,10,0.35)", "rgba(10,10,10,0.72)", "rgba(10,10,10,0.94)"]}
         style={StyleSheet.absoluteFill}

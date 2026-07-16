@@ -34,7 +34,7 @@ export default function WhatsNewModal() {
             <Ionicons name="sparkles" size={22} color={A.onAccent} />
           </View>
           <Text style={styles.title}>{"What's New"}</Text>
-          <Text style={styles.subtitle}>The latest updates in Blue Collar Strategy Guide</Text>
+          <Text style={styles.subtitle}>The latest updates in Blue Collar Alpha</Text>
 
           <View style={styles.list}>
             {WHATS_NEW.map((item, i) => (

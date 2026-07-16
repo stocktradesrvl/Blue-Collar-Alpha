@@ -3,7 +3,6 @@ import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Pla
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/context/ToastContext";
@@ -28,15 +27,17 @@ export default function Login() {
 
   return (
     <View style={styles.flex}>
-      <Image source={require("../../assets/images/icon.png")} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <Image source={require("../../assets/images/money-bg.jpg")} style={StyleSheet.absoluteFill} contentFit="cover" />
       <LinearGradient
-        colors={["rgba(10,10,10,0.35)", "rgba(10,10,10,0.72)", "rgba(10,10,10,0.94)"]}
+        colors={["rgba(10,10,10,0.55)", "rgba(10,10,10,0.8)", "rgba(10,10,10,0.96)"]}
         style={StyleSheet.absoluteFill}
       />
       <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 60 }]} keyboardShouldPersistTaps="handled">
-          <View style={styles.logo}><Ionicons name="trending-up" size={34} color={colors.onBrand} /></View>
-          <Text style={styles.title}>Blue Collar Strategy Guide</Text>
+          <View style={styles.logo}>
+            <Image source={require("../../assets/images/logo-mark.png")} style={styles.logoImg} contentFit="contain" />
+          </View>
+          <Text style={styles.title}>Blue Collar Alpha</Text>
           <Text style={styles.subtitle}>Your personal AI trading coach</Text>
 
           <View style={styles.form}>
@@ -64,7 +65,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.surface },
   kav: { flex: 1, backgroundColor: "transparent" },
   container: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
-  logo: { width: 64, height: 64, borderRadius: radius.lg, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center", marginBottom: spacing.lg },
+  logo: { width: 92, height: 92, borderRadius: radius.lg, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", marginBottom: spacing.lg, overflow: "hidden" },
+  logoImg: { width: 78, height: 78 },
   title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: 30, letterSpacing: 0.5 },
   subtitle: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.lg, marginTop: spacing.xs, marginBottom: spacing.xxl },
   form: { gap: spacing.sm },

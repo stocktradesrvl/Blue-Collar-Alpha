@@ -29,10 +29,13 @@ from urllib.parse import quote
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 BACKEND_URL = os.environ.get('EXPO_BACKEND_URL') or ''
 # Fixed server-side pricing (never trust client amounts). Amounts in cents.
+# Launch promo: discounted first month via a one-time Stripe coupon.
+PROMO_ACTIVE = True
 STRIPE_PACKAGES = {
-    "pro": {"name": "TradeMind Pro", "amount": 1999, "trial_days": 0},
-    "premium": {"name": "TradeMind Premium", "amount": 4999, "trial_days": 7},
+    "pro": {"name": "Blue Collar Alpha Pro", "amount": 1799, "promo_amount": 999, "trial_days": 0},
+    "premium": {"name": "Blue Collar Alpha Premium", "amount": 2899, "promo_amount": 1499, "trial_days": 0},
 }
+_promo_coupons: dict = {}  # cache: off_cents -> coupon id
 ALGO = "HS256"
 TIER_LEVEL = {"free": 0, "pro": 1, "premium": 2}
 FREE_MONTHLY_LIMIT = 20
@@ -727,6 +730,24 @@ async def create_checkout(inp: CheckoutIn, user=Depends(get_current_user)):
     success_url = f"{inp.origin}/api/payments/redirect?rt={quote(inp.return_url)}&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{inp.origin}/api/payments/redirect?rt={quote(inp.return_url)}&status=cancel"
     sub_data = {"trial_period_days": pkg["trial_days"]} if pkg["trial_days"] > 0 else {}
+    # Launch promo: first month discounted via a one-time coupon (amount_off).
+    discounts = []
+    promo = pkg.get("promo_amount")
+    if PROMO_ACTIVE and promo and promo < pkg["amount"]:
+        off = pkg["amount"] - promo
+        try:
+            cid = _promo_coupons.get(off)
+            if not cid:
+                coupon = stripe.Coupon.create(
+                    amount_off=off, currency="usd", duration="once",
+                    name=f"{pkg['name']} - First Month",
+                )
+                cid = coupon.id
+                _promo_coupons[off] = cid
+            discounts = [{"coupon": cid}]
+        except Exception as e:
+            logger.error(f"stripe coupon err {e}")
+            discounts = []
     try:
         session = stripe.checkout.Session.create(
             mode="subscription",
@@ -743,6 +764,7 @@ async def create_checkout(inp: CheckoutIn, user=Depends(get_current_user)):
             success_url=success_url,
             cancel_url=cancel_url,
             subscription_data=sub_data,
+            discounts=discounts or None,
             metadata={"user_id": user["id"], "tier": tier},
         )
     except Exception as e:
@@ -880,7 +902,7 @@ async def billing_info(user=Depends(get_current_user)):
 
 @api.get("/")
 async def root():
-    return {"message": "TradeMind AI API"}
+    return {"message": "Blue Collar Alpha API"}
 
 app.include_router(api)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"],

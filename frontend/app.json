@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Blue Collar Strategy Guide",
+    "name": "Blue Collar Alpha",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0A4DA0"
+        "backgroundColor": "#F1F5F8"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.strategytracker.odqwcf",
@@ -39,9 +39,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-image.png",
-          "imageWidth": 220,
+          "imageWidth": 240,
           "resizeMode": "contain",
-          "backgroundColor": "#0A0A0A"
+          "backgroundColor": "#F1F5F8"
         }
       ],
       "expo-audio"
