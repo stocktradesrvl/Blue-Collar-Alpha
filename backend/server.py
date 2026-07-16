@@ -30,7 +30,12 @@ stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 BACKEND_URL = os.environ.get('EXPO_BACKEND_URL') or ''
 # Fixed server-side pricing (never trust client amounts). Amounts in cents.
 # Launch promo: discounted first month via a one-time Stripe coupon.
-PROMO_ACTIVE = True
+# Promo auto-expires at the end of Aug 10, 2026 (UTC).
+PROMO_END = datetime(2026, 8, 11, 0, 0, 0, tzinfo=timezone.utc)
+
+def promo_active() -> bool:
+    return datetime.now(timezone.utc) < PROMO_END
+
 STRIPE_PACKAGES = {
     "pro": {"name": "Blue Collar Alpha Pro", "amount": 1799, "promo_amount": 999, "trial_days": 0},
     "premium": {"name": "Blue Collar Alpha Premium", "amount": 2899, "promo_amount": 1499, "trial_days": 7},
@@ -733,7 +738,7 @@ async def create_checkout(inp: CheckoutIn, user=Depends(get_current_user)):
     # Launch promo: first month discounted via a one-time coupon (amount_off).
     discounts = []
     promo = pkg.get("promo_amount")
-    if PROMO_ACTIVE and promo and promo < pkg["amount"]:
+    if promo_active() and promo and promo < pkg["amount"]:
         off = pkg["amount"] - promo
         try:
             cid = _promo_coupons.get(off)
@@ -903,6 +908,10 @@ async def billing_info(user=Depends(get_current_user)):
 @api.get("/")
 async def root():
     return {"message": "Blue Collar Alpha API"}
+
+@api.get("/config")
+async def config():
+    return {"promo_active": promo_active(), "promo_end": PROMO_END.isoformat()}
 
 app.include_router(api)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"],

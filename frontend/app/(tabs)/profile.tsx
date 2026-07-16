@@ -35,9 +35,11 @@ export default function Profile() {
   const [newPw, setNewPw] = useState("");
   const [soundOn, setSoundOn] = useState(!isSoundMuted());
   const [backdrop, setBackdrop] = useState<string>("cash");
+  const [promoActive, setPromoActive] = useState(false);
 
   useEffect(() => {
     storage.getItem<string>(BACKDROP_KEY, "cash").then((v) => setBackdrop(v || "cash"));
+    api.get("/config").then((c) => setPromoActive(!!c?.promo_active)).catch(() => {});
   }, []);
 
   const pickBackdrop = async (id: string) => {
@@ -243,7 +245,7 @@ export default function Profile() {
           const active = user?.subscription_tier === p.tier;
           return (
             <View key={p.tier} style={[styles.plan, active && [styles.planActive, { borderColor: A.accent, shadowColor: A.accent }]]}>
-              {p.promo ? (
+              {promoActive && p.promo ? (
                 <View style={styles.ribbon} pointerEvents="none">
                   <Text style={styles.ribbonTxt}>LAUNCH DEAL</Text>
                 </View>
@@ -254,7 +256,7 @@ export default function Profile() {
                 </View>
                 <Text style={styles.planPrice}>{p.price}</Text>
               </View>
-              {p.promo ? (
+              {promoActive && p.promo ? (
                 <View style={styles.promoBadge}><Text style={styles.promoTxt}>{p.promo}</Text></View>
               ) : null}
               {p.features.map((f) => (
