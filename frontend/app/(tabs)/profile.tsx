@@ -36,6 +36,18 @@ export default function Profile() {
   const [soundOn, setSoundOn] = useState(!isSoundMuted());
   const [backdrop, setBackdrop] = useState<string>("cash");
   const [promoActive, setPromoActive] = useState(false);
+  const [lossInput, setLossInput] = useState(String(user?.daily_loss_limit || ""));
+
+  const saveLossLimit = async () => {
+    const val = parseFloat(lossInput) || 0;
+    try {
+      await api.post("/user/settings", { daily_loss_limit: val });
+      await refresh();
+      toast(val > 0 ? `Daily loss limit set to $${val}` : "Loss limit disabled", "success");
+    } catch (e: any) {
+      toast(e.message || "Could not save", "error");
+    }
+  };
 
   useEffect(() => {
     storage.getItem<string>(BACKDROP_KEY, "cash").then((v) => setBackdrop(v || "cash"));
@@ -181,6 +193,25 @@ export default function Profile() {
           </Pressable>
 
           <View style={styles.prefDivider} />
+          <Text style={styles.prefLabel}>Daily Loss Limit</Text>
+          <Text style={styles.prefHint}>Get a coaching alert on the Dashboard when your day's loss exceeds this. Set 0 to disable.</Text>
+          <View style={styles.lossRow}>
+            <Text style={styles.lossDollar}>$</Text>
+            <TextInput
+              testID="loss-limit-input"
+              style={styles.lossInput}
+              value={lossInput}
+              onChangeText={setLossInput}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor={colors.onSurface3}
+            />
+            <Pressable testID="loss-limit-save" style={[styles.lossSave, { backgroundColor: A.accent }]} onPress={saveLossLimit}>
+              <Text style={[styles.lossSaveTxt, { color: A.onAccent }]}>Save</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.prefDivider} />
           <Text style={styles.prefLabel}>Dashboard Backdrop</Text>
           <View style={styles.backdropRow}>
             {BACKDROPS.map((b) => (
@@ -306,6 +337,12 @@ const styles = StyleSheet.create({
   prefDivider: { height: 1, backgroundColor: colors.divider, marginVertical: spacing.md },
   soundLabRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
   soundLabTxt: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.base },
+  prefHint: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, lineHeight: 18, marginBottom: spacing.sm },
+  lossRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  lossDollar: { color: colors.onSurface2, fontFamily: font.displayBold, fontSize: fs.lg },
+  lossInput: { flex: 1, backgroundColor: colors.surface3, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.lg },
+  lossSave: { borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  lossSaveTxt: { fontFamily: font.displayBold, fontSize: fs.base },
   backdropRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
   backdropItem: { flex: 1, alignItems: "center", gap: spacing.xs },
   backdropThumb: { width: "100%", aspectRatio: 1.3, borderRadius: radius.md, overflow: "hidden", borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface3 },

@@ -10,6 +10,7 @@ import * as Haptics from "expo-haptics";
 import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs, money, pnlColor, glow, cardShadow } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
+import { useAuth } from "@/src/context/AuthContext";
 import { StatCard, EquityCurve, GradientCard, ScreenBackground } from "@/src/components/ui";
 import { PressableScale, CountUpText, PulseHalo } from "@/src/components/anim";
 import { playSound } from "@/src/utils/sound";
@@ -38,6 +39,7 @@ export default function Dashboard() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const A = useAccent().theme;
+  const { user } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [trial, setTrial] = useState<{ days: number } | null>(null);
   const [weekly, setWeekly] = useState<any>(null);
@@ -156,6 +158,15 @@ export default function Dashboard() {
           </Animated.View>
         )}
 
+        {!empty && (user?.daily_loss_limit || 0) > 0 && (stats?.daily_pnl || 0) <= -(user?.daily_loss_limit || 0) && (
+          <Animated.View entering={FadeInDown.duration(600)} style={styles.lossBanner}>
+            <View style={styles.lossIcon}><Ionicons name="hand-left" size={18} color={colors.error} /></View>
+            <Text style={styles.lossTxt}>
+              Daily loss limit hit — you're down <Text style={styles.lossBold}>{money(stats?.daily_pnl || 0)}</Text> (limit {money(-(user?.daily_loss_limit || 0))}). Consider stepping away.
+            </Text>
+          </Animated.View>
+        )}
+
         {empty ? (
           <>
             <View style={styles.emptyBox}>
@@ -242,6 +253,21 @@ export default function Dashboard() {
               <Pressable testID="pretrade-btn" style={styles.chartBtn} onPress={() => router.push("/pretrade")}>
                 <Ionicons name="ribbon" size={20} color={colors.onSurface} />
                 <Text style={styles.chartBtnTxt}>Grade a Potential Trade</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+              <Pressable testID="metrics-btn" style={styles.chartBtn} onPress={() => router.push("/metrics")}>
+                <Ionicons name="stats-chart" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>Performance Metrics</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+              <Pressable testID="calendar-btn" style={styles.chartBtn} onPress={() => router.push("/calendar")}>
+                <Ionicons name="calendar" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>P&L Calendar</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+              <Pressable testID="import-btn" style={styles.chartBtn} onPress={() => router.push("/import")}>
+                <Ionicons name="cloud-upload-outline" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>Import Trades (CSV)</Text>
                 <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
               </Pressable>
             </Animated.View>
@@ -421,6 +447,10 @@ const styles = StyleSheet.create({
   habitTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.base, lineHeight: 19 },
   habitBold: { fontFamily: font.displayBold, color: colors.warning },
   habitClose: { padding: spacing.xs },
+  lossBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.error + "1A", borderRadius: radius.md, borderWidth: 1, borderColor: colors.error + "66", paddingHorizontal: spacing.md, paddingVertical: spacing.md, marginBottom: spacing.lg },
+  lossIcon: { width: 32, height: 32, borderRadius: radius.pill, backgroundColor: colors.error + "22", alignItems: "center", justifyContent: "center" },
+  lossTxt: { flex: 1, color: colors.onSurface, fontFamily: font.text, fontSize: fs.base, lineHeight: 19 },
+  lossBold: { fontFamily: font.displayBold, color: colors.error },
   weeklyHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   weeklyTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
   wrTrend: { flexDirection: "row", alignItems: "center", gap: 2, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },

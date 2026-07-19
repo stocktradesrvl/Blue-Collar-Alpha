@@ -11,6 +11,8 @@ import { colors, spacing, radius, font, fs, money, pnlColor, glow } from "@/src/
 import { GradeBadge } from "@/src/components/ui";
 import { WinBurst } from "@/src/components/WinBurst";
 
+const EMOTIONS = ["Calm", "Confident", "Disciplined", "FOMO", "Anxious", "Greedy", "Revenge", "Bored"];
+
 export default function TradeDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
@@ -44,6 +46,14 @@ export default function TradeDetail() {
       setTrade({ ...trade, taken: next });
       toast(next ? "Marked as executed" : "Marked as idea (excluded from stats)", "info");
     } catch (e: any) { toast(e.message, "error"); }
+  };
+
+  const setEmotion = async (e: string) => {
+    const next = trade.emotion === e ? "" : e;
+    try {
+      const updated = await api.put(`/trades/${id}/emotion`, { emotion: next });
+      setTrade(updated);
+    } catch (err: any) { toast(err.message, "error"); }
   };
 
   if (loading || !trade) return <View style={styles.center}><ActivityIndicator color={colors.brand} size="large" /></View>;
@@ -84,6 +94,20 @@ export default function TradeDetail() {
             <Metric label="Entry" value={`$${trade.entry}`} />
             <Metric label="Exit" value={trade.exit ? `$${trade.exit}` : "—"} />
             <Metric label="Qty" value={`${trade.quantity}`} />
+          </View>
+
+          <View style={styles.emotionCard}>
+            <Text style={styles.emotionTitle}>How did you feel on this trade?</Text>
+            <View style={styles.emotionWrap}>
+              {EMOTIONS.map((e) => {
+                const on = trade.emotion === e;
+                return (
+                  <Pressable key={e} testID={`emotion-${e}`} onPress={() => setEmotion(e)} style={[styles.emoChip, on && { backgroundColor: colors.brand, borderColor: colors.brand }]}>
+                    <Text style={[styles.emoTxt, on && { color: colors.onBrand }]}>{e}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
           <View style={styles.setupCard}>
@@ -178,6 +202,11 @@ const styles = StyleSheet.create({
   pnlLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.lg },
   pnlVal: { fontFamily: font.displayBold, fontSize: fs["2xl"] },
   metrics: { flexDirection: "row", gap: spacing.md },
+  emotionCard: { backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, gap: spacing.sm, marginTop: spacing.md },
+  emotionTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.base },
+  emotionWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  emoChip: { borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  emoTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
   metric: { flex: 1, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
   metricLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
   metricVal: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },

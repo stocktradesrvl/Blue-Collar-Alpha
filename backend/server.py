@@ -94,7 +94,8 @@ def public_user(u: dict) -> dict:
             "raw_tier": u.get("subscription_tier", "free"),
             "account_balance": u.get("account_balance", 10000),
             "referral_code": u.get("referral_code"), "bonus_trades": u.get("bonus_trades", 0),
-            "referral_count": u.get("referral_count", 0), "reward_pro_until": u.get("reward_pro_until")}
+            "referral_count": u.get("referral_count", 0), "reward_pro_until": u.get("reward_pro_until"),
+            "daily_loss_limit": u.get("daily_loss_limit", 0)}
 
 def gen_referral_code() -> str:
     return uuid.uuid4().hex[:6].upper()
@@ -396,6 +397,7 @@ async def trade_debrief(tid: str, regenerate: bool = False, user=Depends(get_cur
         "setup": t.get("detected_setup"), "grade": t.get("setup_grade"),
         "strategy_names": t.get("strategy_names"), "strategy_followed": t.get("strategy_followed"),
         "rule_violations": t.get("rule_violations"), "advanced": t.get("advanced"),
+        "emotion": t.get("emotion"),
         "prior_summary": t.get("ai_summary"),
     }
     system = ("You are an elite trading coach doing a focused debrief on ONE trade. "
@@ -908,6 +910,266 @@ async def billing_info(user=Depends(get_current_user)):
 @api.get("/")
 async def root():
     return {"message": "Blue Collar Alpha API"}
+
+# ---------- Emotion tagging ----------
+EMOTIONS = ["Calm", "Confident", "Disciplined", "FOMO", "Anxious", "Greedy", "Revenge", "Bored"]
+
+class EmotionIn(BaseModel):
+    emotion: str
+
+class SettingsIn(BaseModel):
+    daily_loss_limit: float = 0
+
+class ImportCsvIn(BaseModel):
+    csv: str
+
+@api.put("/trades/{tid}/emotion")
+async def set_emotion(tid: str, inp: EmotionIn, user=Depends(get_current_user)):
+    emo = inp.emotion if inp.emotion in EMOTIONS else None
+    res = await db.trades.update_one({"id": tid, "user_id": user["id"]}, {"$set": {"emotion": emo}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    t = await db.trades.find_one({"id": tid})
+    return clean_trade(t)
+
+@api.post("/user/settings")
+async def set_settings(inp: SettingsIn, user=Depends(get_current_user)):
+    lim = max(0, float(inp.daily_loss_limit or 0))
+    await db.users.update_one({"id": user["id"]}, {"$set": {"daily_loss_limit": lim}})
+    u = await db.users.find_one({"id": user["id"]})
+    return public_user(u)
+
+# ---------- Performance metrics + playbooks ----------
+WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+def _parse_hour(tt):
+    if not tt or not isinstance(tt, str):
+        return None
+    m = re.match(r"\s*(\d{1,2}):?(\d{2})?\s*([APap][Mm])?", tt)
+    if not m:
+        return None
+    h = int(m.group(1))
+    ap = (m.group(3) or "").lower()
+    if ap == "pm" and h < 12:
+        h += 12
+    if ap == "am" and h == 12:
+        h = 0
+    return h if 0 <= h <= 23 else None
+
+@api.get("/dashboard/metrics")
+async def dashboard_metrics(user=Depends(get_current_user)):
+    all_trades = await db.trades.find({"user_id": user["id"]}, {"image_base64": 0}).sort("created_at", 1).to_list(3000)
+    trades = [t for t in all_trades if t.get("taken", True) is not False]
+    total = len(trades)
+    if total == 0:
+        return {"total_trades": 0, "has_data": False}
+    pnls = [t.get("pnl", 0) or 0 for t in trades]
+    wins = [p for p in pnls if p > 0]
+    losses = [p for p in pnls if p < 0]
+    gross_win = sum(wins)
+    gross_loss = abs(sum(losses))
+    total_pnl = sum(pnls)
+    avg_win = gross_win / len(wins) if wins else 0
+    avg_loss = -gross_loss / len(losses) if losses else 0
+    # streaks
+    cur = best_win = worst_loss = 0
+    for p in pnls:
+        if p > 0:
+            cur = cur + 1 if cur > 0 else 1
+            best_win = max(best_win, cur)
+        elif p < 0:
+            cur = cur - 1 if cur < 0 else -1
+            worst_loss = min(worst_loss, cur)
+        else:
+            cur = 0
+    # by weekday
+    wd = defaultdict(lambda: {"pnl": 0.0, "trades": 0, "wins": 0})
+    for t in trades:
+        ca = t.get("created_at", "")
+        try:
+            d = datetime.fromisoformat(ca.replace("z", "").replace("Z", ""))
+            idx = d.weekday()
+        except Exception:
+            continue
+        p = t.get("pnl", 0) or 0
+        wd[idx]["pnl"] += p
+        wd[idx]["trades"] += 1
+        if p > 0:
+            wd[idx]["wins"] += 1
+    by_weekday = [{"day": WEEKDAYS[i], "pnl": round(wd[i]["pnl"], 2), "trades": wd[i]["trades"],
+                   "win_rate": round(wd[i]["wins"] / wd[i]["trades"] * 100) if wd[i]["trades"] else 0}
+                  for i in range(7) if wd[i]["trades"] > 0]
+    # by hour
+    hb = defaultdict(lambda: {"pnl": 0.0, "trades": 0, "wins": 0})
+    for t in trades:
+        h = _parse_hour(t.get("trade_time"))
+        if h is None:
+            continue
+        p = t.get("pnl", 0) or 0
+        hb[h]["pnl"] += p
+        hb[h]["trades"] += 1
+        if p > 0:
+            hb[h]["wins"] += 1
+    def hlabel(h):
+        ap = "AM" if h < 12 else "PM"
+        hh = h % 12 or 12
+        return f"{hh}{ap}"
+    by_hour = [{"hour": hlabel(h), "pnl": round(hb[h]["pnl"], 2), "trades": hb[h]["trades"],
+                "win_rate": round(hb[h]["wins"] / hb[h]["trades"] * 100) if hb[h]["trades"] else 0}
+               for h in sorted(hb.keys())]
+    # playbooks (per strategy)
+    strategies = await db.strategies.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+    pb = {s["id"]: {"name": s["name"], "pnl": 0.0, "trades": 0, "wins": 0} for s in strategies}
+    for t in trades:
+        p = t.get("pnl", 0) or 0
+        for sid in (t.get("strategy_ids") or []):
+            if sid in pb:
+                pb[sid]["pnl"] += p
+                pb[sid]["trades"] += 1
+                if p > 0:
+                    pb[sid]["wins"] += 1
+    playbooks = sorted(
+        [{"name": v["name"], "pnl": round(v["pnl"], 2), "trades": v["trades"],
+          "win_rate": round(v["wins"] / v["trades"] * 100) if v["trades"] else 0,
+          "avg": round(v["pnl"] / v["trades"], 2) if v["trades"] else 0}
+         for v in pb.values() if v["trades"] > 0],
+        key=lambda x: -x["pnl"])
+    return {
+        "has_data": True, "total_trades": total,
+        "win_rate": round(len(wins) / total * 100, 1),
+        "total_pnl": round(total_pnl, 2),
+        "profit_factor": round(gross_win / gross_loss, 2) if gross_loss > 0 else round(gross_win, 2),
+        "expectancy": round(total_pnl / total, 2),
+        "avg_win": round(avg_win, 2), "avg_loss": round(avg_loss, 2),
+        "payoff_ratio": round(avg_win / abs(avg_loss), 2) if avg_loss else 0,
+        "largest_win": round(max(pnls), 2), "largest_loss": round(min(pnls), 2),
+        "best_win_streak": best_win, "worst_loss_streak": abs(worst_loss),
+        "current_streak": cur,
+        "by_weekday": by_weekday, "by_hour": by_hour, "playbooks": playbooks,
+    }
+
+# ---------- P&L Calendar ----------
+@api.get("/dashboard/calendar")
+async def dashboard_calendar(month: Optional[str] = None, user=Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    if month:
+        try:
+            y, m = map(int, month.split("-"))
+        except Exception:
+            y, m = now.year, now.month
+    else:
+        y, m = now.year, now.month
+    prefix = f"{y:04d}-{m:02d}"
+    all_trades = await db.trades.find(
+        {"user_id": user["id"], "created_at": {"$regex": f"^{prefix}"}}, {"pnl": 1, "created_at": 1, "taken": 1, "_id": 0}
+    ).to_list(3000)
+    days = defaultdict(lambda: {"pnl": 0.0, "trades": 0})
+    for t in all_trades:
+        if t.get("taken", True) is False:
+            continue
+        day = t.get("created_at", "")[:10]
+        days[day]["pnl"] += t.get("pnl", 0) or 0
+        days[day]["trades"] += 1
+    out = {d: {"pnl": round(v["pnl"], 2), "trades": v["trades"]} for d, v in days.items()}
+    month_pnl = round(sum(v["pnl"] for v in days.values()), 2)
+    green = sum(1 for v in days.values() if v["pnl"] > 0)
+    red = sum(1 for v in days.values() if v["pnl"] < 0)
+    return {"month": prefix, "days": out, "month_pnl": month_pnl,
+            "green_days": green, "red_days": red, "trading_days": len(days)}
+
+# ---------- CSV import ----------
+@api.post("/trades/import-csv")
+async def import_csv(inp: ImportCsvIn, user=Depends(get_current_user)):
+    import csv, io
+    text = inp.csv.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty CSV")
+    try:
+        reader = csv.DictReader(io.StringIO(text))
+        rows = list(reader)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not parse CSV")
+    if not rows:
+        raise HTTPException(status_code=400, detail="No rows found in CSV")
+
+    def norm(k):
+        return re.sub(r"[^a-z0-9]", "", (k or "").lower())
+    SYN = {
+        "symbol": ["symbol", "ticker", "instrument", "sym"],
+        "pnl": ["pnl", "pl", "profit", "profitloss", "netpnl", "net", "realized", "realizedpnl", "gain", "gainloss"],
+        "date": ["date", "datetime", "time", "closedate", "closetime", "tradedate", "opened", "closed", "exittime"],
+        "direction": ["side", "direction", "type", "action"],
+        "entry": ["entry", "entryprice", "buyprice", "avgentry", "open", "openprice"],
+        "exit": ["exit", "exitprice", "sellprice", "avgexit", "close", "closeprice"],
+        "quantity": ["qty", "quantity", "size", "shares", "contracts", "volume"],
+        "setup": ["setup", "strategy", "notes", "note", "tag"],
+    }
+    def pick(row, field):
+        for cand in SYN[field]:
+            for k in row:
+                if norm(k) == cand:
+                    return row[k]
+        return None
+    def pnum(v):
+        if v is None:
+            return None
+        s = str(v).strip().replace("$", "").replace(",", "")
+        neg = s.startswith("(") and s.endswith(")")
+        s = s.strip("()")
+        try:
+            n = float(s)
+            return -n if neg else n
+        except Exception:
+            return None
+
+    # Free-tier remaining allowance
+    remaining = None
+    if effective_tier(user) == "free":
+        month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        cnt = await db.trades.count_documents({"user_id": user["id"], "created_at": {"$gte": month_start.isoformat()}})
+        remaining = max(0, FREE_MONTHLY_LIMIT + user.get("bonus_trades", 0) - cnt)
+
+    docs = []
+    skipped = 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for row in rows:
+        pnl = pnum(pick(row, "pnl"))
+        sym = (pick(row, "symbol") or "").strip().upper()
+        if pnl is None or not sym:
+            skipped += 1
+            continue
+        # date
+        created = now_iso
+        raw_date = pick(row, "date")
+        if raw_date:
+            s = str(raw_date).strip()
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%m/%d/%Y %H:%M", "%m/%d/%Y", "%m/%d/%y", "%d/%m/%Y"):
+                try:
+                    created = datetime.strptime(s, fmt).replace(tzinfo=timezone.utc).isoformat()
+                    break
+                except Exception:
+                    continue
+        direction = (pick(row, "direction") or "long").strip().lower()
+        direction = "short" if direction in ("short", "sell", "s", "sold") else "long"
+        docs.append({
+            "id": str(uuid.uuid4()), "user_id": user["id"], "symbol": sym[:12],
+            "asset_type": "stock", "direction": direction,
+            "entry": pnum(pick(row, "entry")) or 0, "exit": pnum(pick(row, "exit")) or 0,
+            "quantity": pnum(pick(row, "quantity")) or 1, "pnl": round(pnl, 2),
+            "trade_time": None, "setup_grade": "C", "strategy_followed": True,
+            "rule_violations": [], "detected_setup": (pick(row, "setup") or "Imported").strip()[:40] or "Imported",
+            "ai_summary": "", "advanced": {}, "taken": True,
+            "strategy_ids": [], "strategy_names": [], "strategy_id": None, "strategy_name": None,
+            "source": "csv", "created_at": created,
+        })
+    if remaining is not None and len(docs) > remaining:
+        docs = docs[:remaining]
+        capped = True
+    else:
+        capped = False
+    if docs:
+        await db.trades.insert_many(docs)
+    return {"imported": len(docs), "skipped": skipped, "capped": capped, "total_rows": len(rows)}
 
 @api.get("/config")
 async def config():
