@@ -72,3 +72,12 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 ## Rebrand + Pricing (2026-07): Renamed app to "Blue Collar Alpha". New logo emblem generated from user asset into icon.png/adaptive-icon.png/splash-image.png/favicon.png/logo-mark.png (light bg #F1F5F8). Login/register use money-bg.jpg + emblem logo card. Pricing: Pro $17.99/mo (was 19.99), Premium $28.99/mo (was 49.99). Launch promo (PROMO_ACTIVE in server.py) discounts FIRST MONTH via one-time Stripe coupon: Pro $9.99, Premium $14.99; recurring reverts to full price. NOTE: removed Premium 7-day free trial in favor of the promo first-month price. Verified: Stripe first charge = $9.99 (pro). Icons/splash need a fresh native build to show on device.
 
 ## Pricing update (2026-07): Restored Premium 7-day free trial (trial_days=7) which now STACKS with promo coupon (7 days free -> $14.99 first invoice -> $28.99 recurring). Added green diagonal "LAUNCH DEAL" corner ribbon to promo plan cards (Pro & Premium) in profile.tsx (styles.ribbon, overflow hidden on .plan).
+
+## Analytics + Coach features (2026-07): 
+- Metrics: GET /api/dashboard/metrics (profit_factor, expectancy, avg_win/loss, payoff, streaks, by_weekday, by_hour, playbooks) -> app/metrics.tsx.
+- P&L Calendar: GET /api/dashboard/calendar?month=YYYY-MM (daily heatmap, month_pnl, green/red) -> app/calendar.tsx.
+- CSV import: POST /api/trades/import-csv (flexible column mapping, free-tier cap) -> app/import.tsx.
+- Daily loss limit: POST /api/user/settings {daily_loss_limit}; red Dashboard banner when day P&L <= -limit; Profile input.
+- Emotion tagging: PUT /api/trades/{id}/emotion (8 emotions) -> chips on Trade Detail; fed into debrief ctx.
+- Playbook stats included in metrics (per-strategy). Dashboard nav buttons: metrics-btn, calendar-btn, import-btn.
+- Verified: 13/13 backend pytest + 6/6 frontend E2E (iteration_7.json). expo-document-picker installed.
