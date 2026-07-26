@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Header
 from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -37,6 +37,10 @@ DISCORD_GUILD_ID = os.environ.get('DISCORD_GUILD_ID', '')
 DISCORD_ROLE_ID = os.environ.get('DISCORD_ROLE_ID', '')
 DISCORD_API = "https://discord.com/api/v10"
 DISCORD_OAUTH_AUTHORIZE = "https://discord.com/api/oauth2/authorize"
+
+# ---------- GEX ingest config ----------
+GEX_INGEST_KEY = os.environ.get('GEX_INGEST_KEY', '')
+GEX_SYMBOLS = ["SPY", "SPX", "XSP"]
 # Fixed server-side pricing (never trust client amounts). Amounts in cents.
 # Launch promo: discounted first month via a one-time Stripe coupon.
 # Promo auto-expires at the end of Aug 10, 2026 (UTC).
@@ -1331,6 +1335,64 @@ async def import_csv(inp: ImportCsvIn, user=Depends(get_current_user)):
     if docs:
         await db.trades.insert_many(docs)
     return {"imported": len(docs), "skipped": skipped, "capped": capped, "total_rows": len(rows)}
+
+# ---------- GEX ingest + tracker ----------
+class GexStrike(BaseModel):
+    strike: float
+    gex: float = 0
+    call_oi: Optional[float] = None
+    put_oi: Optional[float] = None
+
+class GexIn(BaseModel):
+    symbol: str
+    spot: float
+    timestamp: Optional[str] = None
+    net_gex: float = 0
+    flip_point: Optional[float] = None
+    call_wall: Optional[float] = None
+    put_wall: Optional[float] = None
+    strikes: List[GexStrike] = []
+
+def _clean_gex(d: dict) -> dict:
+    d.pop("_id", None)
+    return d
+
+@api.post("/ingest/gex")
+async def ingest_gex(inp: GexIn, x_ingest_key: str = Header(default="")):
+    if not GEX_INGEST_KEY or x_ingest_key != GEX_INGEST_KEY:
+        raise HTTPException(status_code=401, detail="Invalid ingest key")
+    sym = inp.symbol.upper().strip()
+    if sym not in GEX_SYMBOLS:
+        raise HTTPException(status_code=400, detail=f"Unsupported symbol {sym}. Allowed: {GEX_SYMBOLS}")
+    now = datetime.now(timezone.utc).isoformat()
+    doc = inp.model_dump()
+    doc["symbol"] = sym
+    doc["received_at"] = now
+    if not doc.get("timestamp"):
+        doc["timestamp"] = now
+    await db.gex_snapshots.update_one({"symbol": sym}, {"$set": doc}, upsert=True)
+    return {"ok": True, "symbol": sym, "strikes": len(doc.get("strikes", []))}
+
+@api.get("/gex")
+async def gex_all(user=Depends(get_current_user)):
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        raise HTTPException(status_code=402, detail="GEX Tracker is a Premium feature. Upgrade to unlock.")
+    out = []
+    for sym in GEX_SYMBOLS:
+        d = await db.gex_snapshots.find_one({"symbol": sym})
+        if d:
+            out.append(_clean_gex(d))
+    return {"symbols": GEX_SYMBOLS, "snapshots": out}
+
+@api.get("/gex/{symbol}")
+async def gex_one(symbol: str, user=Depends(get_current_user)):
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        raise HTTPException(status_code=402, detail="GEX Tracker is a Premium feature. Upgrade to unlock.")
+    sym = symbol.upper().strip()
+    d = await db.gex_snapshots.find_one({"symbol": sym})
+    if not d:
+        raise HTTPException(status_code=404, detail="No GEX data for this symbol yet")
+    return _clean_gex(d)
 
 @api.get("/config")
 async def config():

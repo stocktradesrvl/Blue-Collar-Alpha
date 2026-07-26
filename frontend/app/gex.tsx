@@ -1,0 +1,226 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, RefreshControl } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { api } from "@/src/api";
+import { colors, spacing, radius, font, fs } from "@/src/theme";
+import { useAccent } from "@/src/context/AccentContext";
+import { ScreenBackground } from "@/src/components/ui";
+
+const SYMBOLS = ["SPY", "SPX", "XSP"];
+
+function fmtGex(v: number): string {
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  const abs = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+}
+function fmtPx(v?: number | null): string {
+  if (v === null || v === undefined || isNaN(v as number)) return "—";
+  return (v as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function ago(iso?: string): string {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return "";
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+function StrikeRow({ s, max, tag }: { s: any; max: number; tag?: string }) {
+  const pos = (s.gex ?? 0) >= 0;
+  const w = Math.max((Math.abs(s.gex ?? 0) / (max || 1)) * 100, 3);
+  return (
+    <View style={styles.strikeRow}>
+      <View style={styles.strikeHead}>
+        <Text style={styles.strikeLabel}>{s.strike}</Text>
+        {tag ? <Text style={[styles.strikeTag, tag === "Spot" ? styles.tagSpot : pos ? styles.tagCall : styles.tagPut]}>{tag}</Text> : null}
+      </View>
+      <View style={styles.strikeTrack}>
+        <View style={[styles.strikeFill, { width: `${w}%`, backgroundColor: pos ? colors.success : colors.error }]} />
+      </View>
+      <Text style={[styles.strikeGex, { color: pos ? colors.success : colors.error }]}>{fmtGex(s.gex ?? 0)}</Text>
+    </View>
+  );
+}
+
+export default function Gex() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const A = useAccent().theme;
+  const [snaps, setSnaps] = useState<Record<string, any>>({});
+  const [sym, setSym] = useState("SPY");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api.get("/gex");
+      const map: Record<string, any> = {};
+      (r.snapshots || []).forEach((s: any) => { map[s.symbol] = s; });
+      setSnaps(map);
+      setLocked(false);
+      setError("");
+    } catch (e: any) {
+      if (e.status === 402) setLocked(true);
+      else setError(e.message || "Could not load GEX data");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const onRefresh = () => { setRefreshing(true); load(); };
+
+  const d = snaps[sym];
+  const strikes = (d?.strikes || []).slice().sort((a: any, b: any) => b.strike - a.strike);
+  const maxGex = Math.max(1, ...strikes.map((x: any) => Math.abs(x.gex ?? 0)));
+  const netPos = (d?.net_gex ?? 0) >= 0;
+
+  const tagFor = (strike: number): string | undefined => {
+    if (d?.call_wall != null && strike === d.call_wall) return "Call Wall";
+    if (d?.put_wall != null && strike === d.put_wall) return "Put Wall";
+    return undefined;
+  };
+
+  return (
+    <View style={styles.flex}>
+      <ScreenBackground />
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+        <Pressable testID="gex-back" onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
+        </Pressable>
+        <Text style={styles.headerTitle}>GEX Tracker</Text>
+        <View style={{ width: 34 }} />
+      </View>
+
+      {loading ? (
+        <View style={styles.center}><ActivityIndicator color={A.accent} size="large" /></View>
+      ) : locked ? (
+        <View style={styles.center}>
+          <Ionicons name="lock-closed-outline" size={44} color={colors.onSurface3} />
+          <Text style={styles.empty}>The GEX Tracker & options heatmap is a Premium feature.</Text>
+          <Pressable testID="gex-upgrade" style={[styles.upgradeBtn, { backgroundColor: A.accent }]} onPress={() => router.push("/(tabs)/profile")}>
+            <Text style={styles.upgradeTxt}>Upgrade to Premium</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + 40, gap: spacing.md }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={A.accent} />}
+        >
+          <View style={styles.tabs}>
+            {SYMBOLS.map((s) => (
+              <Pressable key={s} testID={`gex-tab-${s}`} onPress={() => setSym(s)}
+                style={[styles.tab, sym === s && { backgroundColor: A.accent, borderColor: A.accent }]}>
+                <Text style={[styles.tabTxt, sym === s && { color: colors.onBrand }]}>{s}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {error ? <Text style={styles.errTxt}>{error}</Text> : null}
+
+          {!d ? (
+            <View style={styles.waitCard}>
+              <Ionicons name="hourglass-outline" size={32} color={colors.onSurface3} />
+              <Text style={styles.empty}>No {sym} data yet. Waiting for your bot to push a snapshot.</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.netCard}>
+                <View style={styles.netTop}>
+                  <View>
+                    <Text style={styles.netLabel}>Net Gamma Exposure</Text>
+                    <Text style={[styles.netVal, { color: netPos ? colors.success : colors.error }]}>{fmtGex(d.net_gex ?? 0)}</Text>
+                    <Text style={[styles.netTag, { color: netPos ? colors.success : colors.error }]}>
+                      {netPos ? "Positive · dealers suppress volatility" : "Negative · dealers amplify volatility"}
+                    </Text>
+                  </View>
+                  <View style={styles.spotBox}>
+                    <Text style={styles.spotLabel}>SPOT</Text>
+                    <Text style={styles.spotVal}>{fmtPx(d.spot)}</Text>
+                  </View>
+                </View>
+                <Text style={styles.updated}>Updated {ago(d.timestamp || d.received_at)}</Text>
+              </View>
+
+              <View style={styles.levelGrid}>
+                <View style={styles.levelCard}>
+                  <Text style={styles.levelLabel}>Gamma Flip</Text>
+                  <Text style={[styles.levelVal, { color: A.accent }]}>{fmtPx(d.flip_point)}</Text>
+                </View>
+                <View style={styles.levelCard}>
+                  <Text style={styles.levelLabel}>Call Wall</Text>
+                  <Text style={[styles.levelVal, { color: colors.success }]}>{fmtPx(d.call_wall)}</Text>
+                </View>
+                <View style={styles.levelCard}>
+                  <Text style={styles.levelLabel}>Put Wall</Text>
+                  <Text style={[styles.levelVal, { color: colors.error }]}>{fmtPx(d.put_wall)}</Text>
+                </View>
+              </View>
+
+              {strikes.length ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Strike Gamma Heatmap</Text>
+                  {strikes.map((s: any) => <StrikeRow key={s.strike} s={s} max={maxGex} tag={tagFor(s.strike)} />)}
+                </View>
+              ) : null}
+            </>
+          )}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: colors.surface },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
+  empty: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.base, textAlign: "center" },
+  errTxt: { color: colors.error, fontFamily: font.text, fontSize: fs.sm, textAlign: "center" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  backBtn: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: radius.pill, backgroundColor: colors.surface2 },
+  headerTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
+  upgradeBtn: { borderRadius: radius.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.sm },
+  upgradeTxt: { color: colors.onBrand, fontFamily: font.displayBold, fontSize: fs.base },
+  tabs: { flexDirection: "row", gap: spacing.sm },
+  tab: { flex: 1, alignItems: "center", paddingVertical: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+  tabTxt: { color: colors.onSurface2, fontFamily: font.displayBold, fontSize: fs.base, letterSpacing: 0.5 },
+  waitCard: { backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.xl, borderWidth: 1, borderColor: colors.border, alignItems: "center", gap: spacing.sm },
+  netCard: { backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, gap: spacing.sm },
+  netTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  netLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1 },
+  netVal: { fontFamily: font.displayBold, fontSize: 34, marginTop: 2 },
+  netTag: { fontFamily: font.text, fontSize: fs.sm, marginTop: 2 },
+  spotBox: { alignItems: "flex-end" },
+  spotLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, letterSpacing: 1 },
+  spotVal: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
+  updated: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
+  levelGrid: { flexDirection: "row", gap: spacing.sm },
+  levelCard: { flex: 1, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, gap: 2 },
+  levelLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
+  levelVal: { fontFamily: font.displayBold, fontSize: fs.lg },
+  section: { backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, gap: spacing.sm },
+  sectionTitle: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.xs },
+  strikeRow: { gap: 3, marginBottom: spacing.xs },
+  strikeHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  strikeLabel: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base },
+  strikeTag: { fontFamily: font.text, fontSize: fs.sm, paddingHorizontal: spacing.sm, paddingVertical: 1, borderRadius: radius.sm, overflow: "hidden" },
+  tagCall: { color: colors.success, backgroundColor: colors.success + "22" },
+  tagPut: { color: colors.error, backgroundColor: colors.error + "22" },
+  tagSpot: { color: colors.onSurface, backgroundColor: colors.surface3 },
+  strikeTrack: { height: 8, borderRadius: radius.pill, backgroundColor: colors.surface3, overflow: "hidden" },
+  strikeFill: { height: 8, borderRadius: radius.pill },
+  strikeGex: { fontFamily: font.displayBold, fontSize: fs.sm },
+});

@@ -270,6 +270,11 @@ export default function Dashboard() {
                 <Text style={styles.chartBtnTxt}>Import Trades (CSV)</Text>
                 <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
               </Pressable>
+              <Pressable testID="gex-btn" style={styles.chartBtn} onPress={() => router.push("/gex")}>
+                <Ionicons name="pulse" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>GEX Tracker & Heatmap</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
             </Animated.View>
 
             {lastTrade?.has_trade && (

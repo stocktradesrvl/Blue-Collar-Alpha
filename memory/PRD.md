@@ -89,3 +89,9 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 - Frontend: DiscordLoginButton ("Continue with Discord") on login + register (auto-hides if not configured); Community card in Profile links/unlinks Discord. AuthContext exposes discord_id/discord_username + loginWithToken(token).
 - Verified: 16/16 backend tests (iteration_8.json). NOTE: live role grant/revoke requires a real guild member and cannot be verified in preview; test on a real Discord account after deploy.
 - Next queued: GEX Tracker & Options Heatmap ingest (POST /api/ingest/gex, Premium-gated screens); weekly summary emails (Resend).
+
+## GEX Tracker & Options Heatmap (2026-07):
+- Ingest: POST /api/ingest/gex — key-protected via header `X-Ingest-Key` (== backend/.env GEX_INGEST_KEY). One symbol per request; upserts latest snapshot per symbol into `gex_snapshots` (keyed by symbol). Symbols: SPY, SPX, XSP. Payload schema {symbol, spot, timestamp?, net_gex, flip_point, call_wall, put_wall, strikes:[{strike,gex,call_oi?,put_oi?}]}. Returns {ok,symbol,strikes}.
+- Read (Premium-gated, 402 else): GET /api/gex (all latest snapshots) + GET /api/gex/{symbol}.
+- Frontend: app/gex.tsx — symbol tabs, Net GEX (green positive=suppressed vol / red negative=amplified vol), spot, Gamma Flip / Call Wall / Put Wall cards, Strike Gamma Heatmap (bars colored by gex sign, wall-tagged), pull-to-refresh, Premium lock screen w/ upgrade CTA. Dashboard entry: gex-btn -> /gex.
+- Next queued: weekly summary emails (Resend).
