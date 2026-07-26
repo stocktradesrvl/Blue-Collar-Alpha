@@ -46,6 +46,16 @@ export default function Profile() {
     catch (e: any) { setDigestOn(!v); toast(e.message || "Could not update", "error"); }
   };
 
+  const sendTestDigest = async () => {
+    setBusy("digest-test");
+    try {
+      const r = await api.post("/user/send-test-digest");
+      toast(`Test recap sent to ${r.email}`, "success");
+    } catch (e: any) {
+      toast(e.message || "Could not send test digest", "error");
+    } finally { setBusy(null); }
+  };
+
   const linkDiscord = async () => {
     setBusy("discord");
     try {
@@ -282,6 +292,16 @@ export default function Profile() {
               trackColor={{ false: colors.surface3, true: A.accent }} thumbColor={colors.onSurface} />
           </View>
           <Text style={styles.prefHint}>Get a weekly performance summary emailed to {user?.email}.</Text>
+          {user?.subscription_tier === "premium" && digestOn && (
+            <Pressable testID="send-test-digest" style={styles.testDigestBtn} onPress={sendTestDigest} disabled={busy === "digest-test"}>
+              {busy === "digest-test" ? <ActivityIndicator color={A.accent} /> : (
+                <>
+                  <Ionicons name="paper-plane-outline" size={16} color={A.accent} />
+                  <Text style={[styles.testDigestTxt, { color: A.accent }]}>Send me a test recap now</Text>
+                </>
+              )}
+            </Pressable>
+          )}
 
           <View style={styles.prefDivider} />
           <Text style={styles.prefLabel}>Dashboard Backdrop</Text>
@@ -408,6 +428,8 @@ const styles = StyleSheet.create({
   discordBtnTxt: { color: "#fff", fontFamily: font.displayBold, fontSize: fs.base, letterSpacing: 0.3 },
   discordUnlink: { alignItems: "center", justifyContent: "center", borderRadius: radius.md, paddingVertical: spacing.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.xs },
   discordUnlinkTxt: { color: colors.onSurface2, fontFamily: font.display, fontSize: fs.base },
+  testDigestBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, borderRadius: radius.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, marginTop: spacing.xs },
+  testDigestTxt: { fontFamily: font.display, fontSize: fs.base },
   prefRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   prefLeft: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   prefLabel: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },

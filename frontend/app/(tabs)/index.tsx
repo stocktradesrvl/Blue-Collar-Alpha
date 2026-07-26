@@ -41,6 +41,11 @@ function fmtGexShort(v: number): string {
   if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(0)}K`;
   return `${sign}$${abs.toFixed(0)}`;
 }
+const GEX_STALE_MS = 26 * 3600 * 1000;
+function isStaleSnap(s: any): boolean {
+  const t = new Date(s?.timestamp || s?.received_at).getTime();
+  return !isNaN(t) && (Date.now() - t) > GEX_STALE_MS;
+}
 
 
 export default function Dashboard() {
@@ -320,17 +325,24 @@ export default function Dashboard() {
                       <View style={styles.gexTitleRow}>
                         <Ionicons name="pulse" size={16} color={A.accent} />
                         <Text style={styles.gexTitle}>GEX · At a Glance</Text>
+                        {gex.some(isStaleSnap) && (
+                          <View style={styles.gexStalePill}>
+                            <Ionicons name="warning-outline" size={11} color={colors.warning} />
+                            <Text style={styles.gexStaleTxt}>stale</Text>
+                          </View>
+                        )}
                       </View>
                       <Ionicons name="chevron-forward" size={16} color={colors.onSurface3} />
                     </View>
                     <View style={styles.gexRow}>
                       {gex.map((s: any) => {
                         const pos = (s.net_gex ?? 0) >= 0;
+                        const stale = isStaleSnap(s);
                         return (
                           <View key={s.symbol} style={styles.gexItem}>
                             <Text style={styles.gexSym}>{s.symbol}</Text>
                             <Text style={[styles.gexNet, { color: pos ? colors.success : colors.error }]}>{fmtGexShort(s.net_gex ?? 0)}</Text>
-                            <Text style={styles.gexFlip}>flip {s.flip_point != null ? Number(s.flip_point).toFixed(0) : "—"}</Text>
+                            <Text style={[styles.gexFlip, stale && { color: colors.warning }]}>{stale ? "stale" : `flip ${s.flip_point != null ? Number(s.flip_point).toFixed(0) : "—"}`}</Text>
                           </View>
                         );
                       })}
@@ -489,6 +501,8 @@ const styles = StyleSheet.create({
   gexHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   gexTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   gexTitle: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1 },
+  gexStalePill: { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: colors.warning + "22", borderRadius: radius.sm, paddingHorizontal: spacing.xs, paddingVertical: 1 },
+  gexStaleTxt: { color: colors.warning, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.5 },
   gexRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm },
   gexItem: { flex: 1, alignItems: "center", gap: 2 },
   gexSym: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base, letterSpacing: 0.5 },

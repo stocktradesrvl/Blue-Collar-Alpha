@@ -1536,6 +1536,33 @@ async def gex_one(symbol: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="No GEX data for this symbol yet")
     return _clean_gex(d)
 
+@api.post("/user/send-test-digest")
+async def send_test_digest(user=Depends(get_current_user)):
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        raise HTTPException(status_code=402, detail="Weekly digest preview is a Premium feature.")
+    if not (RESEND_API_KEY and RESEND_FROM_EMAIL):
+        raise HTTPException(status_code=503, detail="Email is not configured yet.")
+    email = (user.get("email") or "").lower()
+    if not email or email.endswith("@bca.local"):
+        raise HTTPException(status_code=400, detail="Add a real email to your account to receive the digest.")
+    summary = await _compute_weekly_summary(user["id"])
+    if not summary:
+        raise HTTPException(status_code=400, detail="No trades in the last 7 days to summarize yet.")
+    unsub_url = f"{PUBLIC_APP_URL}/api/unsubscribe?token={_make_unsub_token(user['id'])}" if PUBLIC_APP_URL else ""
+    try:
+        resend.Emails.send({
+            "from": RESEND_FROM_EMAIL,
+            "to": [email],
+            "subject": "Your Weekly Trading Recap (Preview) 📈",
+            "html": _digest_html(summary, unsub_url),
+        })
+    except Exception as e:
+        msg = str(e)
+        if "not verified" in msg:
+            raise HTTPException(status_code=502, detail="Sending domain isn't verified in Resend yet. Verify it, then try again.")
+        raise HTTPException(status_code=502, detail=f"Email failed: {msg[:180]}")
+    return {"ok": True, "email": email}
+
 @api.get("/config")
 async def config():
     return {"promo_active": promo_active(), "promo_end": PROMO_END.isoformat(),
