@@ -81,3 +81,11 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 - Emotion tagging: PUT /api/trades/{id}/emotion (8 emotions) -> chips on Trade Detail; fed into debrief ctx.
 - Playbook stats included in metrics (per-strategy). Dashboard nav buttons: metrics-btn, calendar-btn, import-btn.
 - Verified: 13/13 backend pytest + 6/6 frontend E2E (iteration_7.json). expo-document-picker installed.
+
+## Discord OAuth2 + Auto-Role (2026-07):
+- Scope: `identify` only (users join server manually; we grant the subscriber role). Discord creds in backend/.env (DISCORD_CLIENT_ID/SECRET/BOT_TOKEN/GUILD_ID/ROLE_ID). Client ID 1531047271498780723, Guild 1531043083766993027, Role 1531048547254800477.
+- Backend: POST /api/auth/discord/link-url (auth) + GET /api/auth/discord/login-url (public) build authorize URLs with signed-JWT state {mode,uid?,rt,redirect}. GET /api/auth/discord/callback exchanges code via httpx, fetches /users/@me, then LINK mode saves discord_id/discord_username to user (grants role if paid) or LOGIN mode finds/creates user (email discord_<id>@bca.local) and redirects to app returnUrl with ?token=<jwt>. POST /api/auth/discord/unlink revokes role + unsets fields. Role grant/revoke via bot token PUT/DELETE guilds/{g}/members/{uid}/roles/{r}.
+- Wired into payments: checkout.session.completed webhook + /payments/status grant role if linked; customer.subscription.deleted, invoice.payment_failed, and /payments/cancel revoke role. /api/config now returns discord_enabled.
+- Frontend: DiscordLoginButton ("Continue with Discord") on login + register (auto-hides if not configured); Community card in Profile links/unlinks Discord. AuthContext exposes discord_id/discord_username + loginWithToken(token).
+- Verified: 16/16 backend tests (iteration_8.json). NOTE: live role grant/revoke requires a real guild member and cannot be verified in preview; test on a real Discord account after deploy.
+- Next queued: GEX Tracker & Options Heatmap ingest (POST /api/ingest/gex, Premium-gated screens); weekly summary emails (Resend).
