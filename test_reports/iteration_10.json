@@ -1,0 +1,36 @@
+{
+  "summary": "Verification confirmed: POST /api/ingest/gex is HEALTHY. The reported 401 was caused by the reporter using the OLD retired ingest key. All 7 pytest cases in test_ingest_key_rotation.py passed. Raw curl matrix results: CURRENT key -> HTTP 200 {ok:true,symbol:'SPY',strikes:3}; OLD retired key -> HTTP 401 {detail:'Invalid ingest key'}; WRONG random key -> HTTP 401; MISSING X-Ingest-Key header -> HTTP 401. Upsert is working: after pushing net_gex=-987654321 with the CURRENT key, GET /api/gex/SPY (premium) returned symbol=SPY, net_gex=-987654321, net_gex_history array present, no _id leak. Regression GET /api/gex (premium) returned symbols=['SPY','SPX','XSP'] with clean snapshots. No code changes required.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ingest_key_rotation.py",
+    "/app/test_reports/pytest/ingest_key_rotation.xml"
+  ],
+  "action_items": [
+    "No fix needed. Inform the reporter to use the CURRENT GEX_INGEST_KEY from /app/backend/.env (xnLvU3db1XiPxN6bfYs2U7Xc-Uczt1BCgpeIQXY4Vzw). The retired key iVThhbQTfE_gz61S32MHkzUJYgB7ErCuZqRLGMQQcx0 correctly returns 401."
+  ],
+  "critical_code_review_comments": [
+    "Ingest auth check at /app/backend/server.py:1534 uses simple equality against env var. Consider constant-time compare (hmac.compare_digest) to avoid timing side-channel on rotated keys.",
+    "Same 'Invalid ingest key' message is returned for missing header vs wrong key vs unset env var. Fine for security but makes reporter debugging harder; a docs note would help."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ingest_key_rotation.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7 pytest cases + 4/4 curl matrix)",
+    "frontend": "skipped per request"
+  },
+  "seed_data_creation": "SPY GEX snapshot upserted (multiple times) via /api/ingest/gex during tests. Latest write leaves SPY net_gex=-987654321 in test_database.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "GEX_INGEST_KEY in /app/backend/.env is currently 'xnLvU3db1XiPxN6bfYs2U7Xc-Uczt1BCgpeIQXY4Vzw'. Retired key is 'iVThhbQTfE_gz61S32MHkzUJYgB7ErCuZqRLGMQQcx0'. Use /app/backend/tests/test_ingest_key_rotation.py for regression on future rotations - it loads the current key directly from backend/.env via python-dotenv.",
+  "rca_of_issue": "Root cause of the reported 401: reporter used the OLD (rotated-out) ingest key 'iVThhbQTfE...'. The endpoint /api/ingest/gex at server.py:1532-1534 validates X-Ingest-Key against os.environ['GEX_INGEST_KEY'] which is the new value. Reproduction: POST /api/ingest/gex with X-Ingest-Key: <old key> -> 401 {detail:'Invalid ingest key'}. Mitigation: use the CURRENT key from /app/backend/.env; no server change needed."
+}
