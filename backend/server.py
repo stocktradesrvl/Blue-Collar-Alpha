@@ -41,6 +41,13 @@ DISCORD_OAUTH_AUTHORIZE = "https://discord.com/api/oauth2/authorize"
 # ---------- GEX ingest config ----------
 GEX_INGEST_KEY = os.environ.get('GEX_INGEST_KEY', '')
 GEX_SYMBOLS = ["SPY", "SPX", "XSP"]
+
+# ---------- Resend (weekly digest emails) ----------
+import resend
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', '')
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
 # Fixed server-side pricing (never trust client amounts). Amounts in cents.
 # Launch promo: discounted first month via a one-time Stripe coupon.
 # Promo auto-expires at the end of Aug 10, 2026 (UTC).
@@ -109,6 +116,7 @@ def public_user(u: dict) -> dict:
             "referral_code": u.get("referral_code"), "bonus_trades": u.get("bonus_trades", 0),
             "referral_count": u.get("referral_count", 0), "reward_pro_until": u.get("reward_pro_until"),
             "daily_loss_limit": u.get("daily_loss_limit", 0),
+            "weekly_digest_enabled": u.get("weekly_digest_enabled", True),
             "discord_id": u.get("discord_id"), "discord_username": u.get("discord_username")}
 
 def gen_referral_code() -> str:
@@ -814,6 +822,103 @@ async def weekly_recap(user=Depends(get_current_user)):
     return {"has_data": True, "this_week": tw, "last_week": lw, "pnl_change": pnl_change,
             "wr_change": wr_change, "best_setup": best, "worst_setup": worst, "takeaway": takeaway}
 
+# ---------- Weekly digest email (Resend) ----------
+async def _compute_weekly_summary(uid: str):
+    now = datetime.now(timezone.utc)
+    week_ago = (now - timedelta(days=7)).isoformat()
+    two_weeks = (now - timedelta(days=14)).isoformat()
+    trades = await db.trades.find({"user_id": uid}).to_list(2000)
+    taken = [t for t in trades if t.get("taken", True) is not False]
+    this_week = [t for t in taken if week_ago <= t.get("created_at", "") < now.isoformat() + "z"]
+    last_week = [t for t in taken if two_weeks <= t.get("created_at", "") < week_ago]
+    if not this_week:
+        return None
+    def summ(ts):
+        n = len(ts); pnl = round(sum(t.get("pnl", 0) for t in ts), 2)
+        wins = [t for t in ts if t.get("pnl", 0) > 0]
+        return {"trades": n, "pnl": pnl, "win_rate": round(len(wins) / n * 100, 1) if n else 0,
+                "best": round(max((t.get("pnl", 0) for t in ts), default=0), 2),
+                "worst": round(min((t.get("pnl", 0) for t in ts), default=0), 2)}
+    tw, lw = summ(this_week), summ(last_week)
+    setup_pnl = defaultdict(float)
+    for t in this_week:
+        setup_pnl[t.get("detected_setup") or "Unknown"] += t.get("pnl", 0)
+    best_setup = max(setup_pnl, key=setup_pnl.get) if setup_pnl else None
+    violations = sum(1 for t in this_week if not t.get("strategy_followed", True))
+    return {"tw": tw, "lw": lw, "best_setup": best_setup,
+            "best_setup_pnl": round(setup_pnl.get(best_setup, 0), 2) if best_setup else 0,
+            "violations": violations}
+
+def _digest_html(s: dict) -> str:
+    tw = s["tw"]; lw = s["lw"]
+    pnl_color = "#22C55E" if tw["pnl"] >= 0 else "#EF4444"
+    pnl_str = ("+$" + f"{tw['pnl']:,.2f}") if tw["pnl"] >= 0 else ("-$" + f"{abs(tw['pnl']):,.2f}")
+    wr_delta = round(tw["win_rate"] - lw["win_rate"], 1) if lw["trades"] else None
+    delta_txt = ""
+    if wr_delta is not None:
+        arrow = "▲" if wr_delta >= 0 else "▼"
+        delta_txt = f"<span style='color:{'#22C55E' if wr_delta>=0 else '#EF4444'};font-size:13px'>&nbsp;{arrow} {abs(wr_delta)}pts vs last week</span>"
+    setup_row = ""
+    if s["best_setup"] and s["best_setup_pnl"] > 0:
+        setup_row = f"<tr><td style='padding:6px 0;color:#9CA3AF'>Top setup</td><td style='padding:6px 0;text-align:right;color:#E5E7EB'><b>{s['best_setup']}</b> (+${s['best_setup_pnl']:,.0f})</td></tr>"
+    viol_row = ""
+    if s["violations"] > 0:
+        viol_row = f"<tr><td style='padding:6px 0;color:#9CA3AF'>Rule breaks</td><td style='padding:6px 0;text-align:right;color:#F59E0B'><b>{s['violations']}</b></td></tr>"
+    return f"""<!DOCTYPE html><html><body style="margin:0;background:#0A0A0A;font-family:Arial,Helvetica,sans-serif;padding:24px">
+<div style="max-width:520px;margin:0 auto;background:#141414;border:1px solid #262626;border-radius:16px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#1E3A8A,#2563EB);padding:24px 28px">
+    <h1 style="margin:0;color:#fff;font-size:20px;letter-spacing:0.3px">Your Weekly Trading Recap</h1>
+    <p style="margin:4px 0 0;color:#DBEAFE;font-size:13px">Blue Collar Alpha · last 7 days</p>
+  </div>
+  <div style="padding:28px">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="color:#9CA3AF;font-size:13px;text-transform:uppercase;letter-spacing:1px">Weekly P&amp;L</div>
+      <div style="color:{pnl_color};font-size:38px;font-weight:bold;margin-top:4px">{pnl_str}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <tr><td style="padding:6px 0;color:#9CA3AF">Trades</td><td style="padding:6px 0;text-align:right;color:#E5E7EB"><b>{tw['trades']}</b></td></tr>
+      <tr><td style="padding:6px 0;color:#9CA3AF">Win rate</td><td style="padding:6px 0;text-align:right;color:#E5E7EB"><b>{tw['win_rate']}%</b>{delta_txt}</td></tr>
+      <tr><td style="padding:6px 0;color:#9CA3AF">Best trade</td><td style="padding:6px 0;text-align:right;color:#22C55E"><b>+${tw['best']:,.0f}</b></td></tr>
+      <tr><td style="padding:6px 0;color:#9CA3AF">Worst trade</td><td style="padding:6px 0;text-align:right;color:#EF4444"><b>${tw['worst']:,.0f}</b></td></tr>
+      {setup_row}
+      {viol_row}
+    </table>
+    <p style="color:#6B7280;font-size:12px;margin-top:24px;line-height:1.5">Open the app for your full metrics, calendar and AI coach review. You're receiving this because weekly digests are on in your Blue Collar Alpha settings.</p>
+  </div>
+</div>
+</body></html>"""
+
+@api.post("/jobs/send-weekly-digest")
+async def send_weekly_digest(x_ingest_key: str = Header(default="")):
+    if not GEX_INGEST_KEY or x_ingest_key != GEX_INGEST_KEY:
+        raise HTTPException(status_code=401, detail="Invalid ingest key")
+    if not (RESEND_API_KEY and RESEND_FROM_EMAIL):
+        raise HTTPException(status_code=503, detail="Email not configured")
+    users = await db.users.find({"weekly_digest_enabled": {"$ne": False}}).to_list(5000)
+    sent = 0; skipped = 0; failed = 0
+    for u in users:
+        email = (u.get("email") or "").lower()
+        if not email or email.endswith("@bca.local"):
+            skipped += 1
+            continue
+        summary = await _compute_weekly_summary(u["id"])
+        if not summary:
+            skipped += 1
+            continue
+        try:
+            resend.Emails.send({
+                "from": RESEND_FROM_EMAIL,
+                "to": [email],
+                "subject": "Your Weekly Trading Recap 📈",
+                "html": _digest_html(summary),
+            })
+            sent += 1
+        except Exception as e:
+            logger.error(f"resend send err {email}: {e}")
+            failed += 1
+    return {"ok": True, "sent": sent, "skipped": skipped, "failed": failed, "total_users": len(users)}
+
+
 # ---------- Daily report ----------
 @api.get("/reports/daily")
 async def daily_report(user=Depends(get_current_user)):
@@ -1083,7 +1188,8 @@ class EmotionIn(BaseModel):
     emotion: str
 
 class SettingsIn(BaseModel):
-    daily_loss_limit: float = 0
+    daily_loss_limit: Optional[float] = None
+    weekly_digest_enabled: Optional[bool] = None
 
 class ImportCsvIn(BaseModel):
     csv: str
@@ -1099,8 +1205,13 @@ async def set_emotion(tid: str, inp: EmotionIn, user=Depends(get_current_user)):
 
 @api.post("/user/settings")
 async def set_settings(inp: SettingsIn, user=Depends(get_current_user)):
-    lim = max(0, float(inp.daily_loss_limit or 0))
-    await db.users.update_one({"id": user["id"]}, {"$set": {"daily_loss_limit": lim}})
+    updates = {}
+    if inp.daily_loss_limit is not None:
+        updates["daily_loss_limit"] = max(0, float(inp.daily_loss_limit or 0))
+    if inp.weekly_digest_enabled is not None:
+        updates["weekly_digest_enabled"] = bool(inp.weekly_digest_enabled)
+    if updates:
+        await db.users.update_one({"id": user["id"]}, {"$set": updates})
     u = await db.users.find_one({"id": user["id"]})
     return public_user(u)
 

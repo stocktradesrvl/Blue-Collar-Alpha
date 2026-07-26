@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api } from "@/src/api";
 
-type User = { id: string; email: string; subscription_tier: "free" | "pro" | "premium"; account_balance: number; referral_code?: string; bonus_trades?: number; referral_count?: number; discord_id?: string | null; discord_username?: string | null };
+type User = { id: string; email: string; subscription_tier: "free" | "pro" | "premium"; account_balance: number; referral_code?: string; bonus_trades?: number; referral_count?: number; discord_id?: string | null; discord_username?: string | null; daily_loss_limit?: number; weekly_digest_enabled?: boolean };
 type AuthCtx = {
   user: User | null;
   loading: boolean;

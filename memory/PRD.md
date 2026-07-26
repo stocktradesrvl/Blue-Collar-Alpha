@@ -95,3 +95,10 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 - Read (Premium-gated, 402 else): GET /api/gex (all latest snapshots) + GET /api/gex/{symbol}.
 - Frontend: app/gex.tsx — symbol tabs, Net GEX (green positive=suppressed vol / red negative=amplified vol), spot, Gamma Flip / Call Wall / Put Wall cards, Strike Gamma Heatmap (bars colored by gex sign, wall-tagged), pull-to-refresh, Premium lock screen w/ upgrade CTA. Dashboard entry: gex-btn -> /gex.
 - Next queued: weekly summary emails (Resend).
+
+## Weekly Digest Emails via Resend (2026-07):
+- Integration: Resend Python SDK (resend==2.34.0). Keys in backend/.env: RESEND_API_KEY, RESEND_FROM_EMAIL ("Blue Collar Alpha <russelllewis@montanahorizonventuresllc.com>"). resend.api_key set at startup.
+- Send endpoint: POST /api/jobs/send-weekly-digest, protected by header X-Ingest-Key (== GEX_INGEST_KEY, reused for the Pi cron). Iterates users with weekly_digest_enabled != False, skips placeholder @bca.local emails and users with no trades in last 7 days; sends per-user HTML recap via resend.Emails.send. Returns {ok,sent,skipped,failed,total_users}. Failures are caught per-user (won't abort the batch).
+- Digest content: _compute_weekly_summary(uid) (this-week trades/pnl/win_rate/best/worst, top setup, rule violations, WR delta vs last week) -> _digest_html() branded HTML.
+- Opt-in: weekly_digest_enabled defaults True; PUT via POST /api/user/settings {weekly_digest_enabled}. public_user exposes it. Profile toggle "Weekly Email Recap" (digest-toggle).
+- STATUS: code verified (summary+HTML unit-tested; endpoint auth 401/200; 80 users processed). BLOCKED on user action: montanahorizonventuresllc.com domain must be VERIFIED in Resend (resend.com/domains) before real sends — currently returns 403 domain-not-verified. Pi cron should POST weekly to the deployed URL with the X-Ingest-Key header.

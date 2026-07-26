@@ -38,6 +38,13 @@ export default function Profile() {
   const [promoActive, setPromoActive] = useState(false);
   const [discordEnabled, setDiscordEnabled] = useState(false);
   const [lossInput, setLossInput] = useState(String(user?.daily_loss_limit || ""));
+  const [digestOn, setDigestOn] = useState(user?.weekly_digest_enabled !== false);
+
+  const toggleDigest = async (v: boolean) => {
+    setDigestOn(v);
+    try { await api.post("/user/settings", { weekly_digest_enabled: v }); await refresh(); }
+    catch (e: any) { setDigestOn(!v); toast(e.message || "Could not update", "error"); }
+  };
 
   const linkDiscord = async () => {
     setBusy("discord");
@@ -264,6 +271,17 @@ export default function Profile() {
               <Text style={[styles.lossSaveTxt, { color: A.onAccent }]}>Save</Text>
             </Pressable>
           </View>
+
+          <View style={styles.prefDivider} />
+          <View style={styles.prefRow}>
+            <View style={styles.prefLeft}>
+              <Ionicons name="mail-outline" size={20} color={A.accent} />
+              <Text style={styles.prefLabel}>Weekly Email Recap</Text>
+            </View>
+            <Switch testID="digest-toggle" value={digestOn} onValueChange={toggleDigest}
+              trackColor={{ false: colors.surface3, true: A.accent }} thumbColor={colors.onSurface} />
+          </View>
+          <Text style={styles.prefHint}>Get a weekly performance summary emailed to {user?.email}.</Text>
 
           <View style={styles.prefDivider} />
           <Text style={styles.prefLabel}>Dashboard Backdrop</Text>
