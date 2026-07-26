@@ -36,7 +36,32 @@ export default function Profile() {
   const [soundOn, setSoundOn] = useState(!isSoundMuted());
   const [backdrop, setBackdrop] = useState<string>("cash");
   const [promoActive, setPromoActive] = useState(false);
+  const [discordEnabled, setDiscordEnabled] = useState(false);
   const [lossInput, setLossInput] = useState(String(user?.daily_loss_limit || ""));
+
+  const linkDiscord = async () => {
+    setBusy("discord");
+    try {
+      const origin = process.env.EXPO_PUBLIC_BACKEND_URL!;
+      const returnUrl = Linking.createURL("discord-linked");
+      const { url } = await api.post("/auth/discord/link-url", { origin, return_url: returnUrl });
+      const res = await WebBrowser.openAuthSessionAsync(url, returnUrl);
+      if (res.type === "success" && res.url) {
+        const st = Linking.parse(res.url).queryParams?.discord;
+        if (st === "linked") { await refresh(); toast("Discord linked!", "success"); }
+        else if (st === "conflict") toast("That Discord is already linked to another account", "error");
+        else if (st !== "cancelled") toast("Could not link Discord", "error");
+      }
+    } catch (e: any) { toast(e.message || "Could not link Discord", "error"); }
+    finally { setBusy(null); }
+  };
+
+  const unlinkDiscord = async () => {
+    setBusy("discord");
+    try { await api.post("/auth/discord/unlink"); await refresh(); toast("Discord unlinked", "info"); }
+    catch (e: any) { toast(e.message || "Could not unlink", "error"); }
+    finally { setBusy(null); }
+  };
 
   const saveLossLimit = async () => {
     const val = parseFloat(lossInput) || 0;
@@ -51,7 +76,7 @@ export default function Profile() {
 
   useEffect(() => {
     storage.getItem<string>(BACKDROP_KEY, "cash").then((v) => setBackdrop(v || "cash"));
-    api.get("/config").then((c) => setPromoActive(!!c?.promo_active)).catch(() => {});
+    api.get("/config").then((c) => { setPromoActive(!!c?.promo_active); setDiscordEnabled(!!c?.discord_enabled); }).catch(() => {});
   }, []);
 
   const pickBackdrop = async (id: string) => {
@@ -172,6 +197,35 @@ export default function Profile() {
             {busy === "pw" ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.saveMiniTxt}>Update Password</Text>}
           </Pressable>
         </View>
+
+        {discordEnabled && (
+          <>
+            <Text style={styles.section}>Community</Text>
+            <View style={styles.settingsCard}>
+              <View style={styles.discordHeader}>
+                <Ionicons name="logo-discord" size={22} color="#5865F2" />
+                <Text style={styles.prefLabel}>Discord</Text>
+              </View>
+              {user?.discord_id ? (
+                <>
+                  <Text style={styles.prefHint}>Linked as {user.discord_username || "your Discord account"}. Paid members are automatically granted the subscriber role.</Text>
+                  <Pressable testID="discord-unlink" style={styles.discordUnlink} onPress={unlinkDiscord} disabled={busy === "discord"}>
+                    {busy === "discord" ? <ActivityIndicator color={colors.onSurface} /> : <Text style={styles.discordUnlinkTxt}>Unlink Discord</Text>}
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.prefHint}>Link your Discord to auto-receive the subscriber role the moment you upgrade to Pro or Premium.</Text>
+                  <Pressable testID="discord-link" style={styles.discordBtn} onPress={linkDiscord} disabled={busy === "discord"}>
+                    {busy === "discord" ? <ActivityIndicator color="#fff" /> : (
+                      <><Ionicons name="logo-discord" size={18} color="#fff" /><Text style={styles.discordBtnTxt}>Link Discord</Text></>
+                    )}
+                  </Pressable>
+                </>
+              )}
+            </View>
+          </>
+        )}
 
         <Text style={styles.section}>Preferences</Text>
         <View style={styles.settingsCard}>
@@ -331,6 +385,11 @@ const styles = StyleSheet.create({
   rewardTxt: { color: colors.success, fontFamily: font.text, fontSize: fs.sm },
   section: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.md },
   settingsCard: { backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.xl, gap: spacing.sm },
+  discordHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xs },
+  discordBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: "#5865F2", borderRadius: radius.md, paddingVertical: spacing.md, marginTop: spacing.xs },
+  discordBtnTxt: { color: "#fff", fontFamily: font.displayBold, fontSize: fs.base, letterSpacing: 0.3 },
+  discordUnlink: { alignItems: "center", justifyContent: "center", borderRadius: radius.md, paddingVertical: spacing.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.xs },
+  discordUnlinkTxt: { color: colors.onSurface2, fontFamily: font.display, fontSize: fs.base },
   prefRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   prefLeft: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   prefLabel: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },

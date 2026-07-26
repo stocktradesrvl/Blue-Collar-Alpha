@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, json, uuid, re
+import os, logging, json, uuid, re, httpx
 from pathlib import Path
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
@@ -25,9 +25,18 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'dev_secret')
 import stripe
 from fastapi import Request
 from fastapi.responses import HTMLResponse
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 BACKEND_URL = os.environ.get('EXPO_BACKEND_URL') or ''
+
+# ---------- Discord config ----------
+DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
+DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
+DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', '')
+DISCORD_GUILD_ID = os.environ.get('DISCORD_GUILD_ID', '')
+DISCORD_ROLE_ID = os.environ.get('DISCORD_ROLE_ID', '')
+DISCORD_API = "https://discord.com/api/v10"
+DISCORD_OAUTH_AUTHORIZE = "https://discord.com/api/oauth2/authorize"
 # Fixed server-side pricing (never trust client amounts). Amounts in cents.
 # Launch promo: discounted first month via a one-time Stripe coupon.
 # Promo auto-expires at the end of Aug 10, 2026 (UTC).
@@ -95,7 +104,8 @@ def public_user(u: dict) -> dict:
             "account_balance": u.get("account_balance", 10000),
             "referral_code": u.get("referral_code"), "bonus_trades": u.get("bonus_trades", 0),
             "referral_count": u.get("referral_count", 0), "reward_pro_until": u.get("reward_pro_until"),
-            "daily_loss_limit": u.get("daily_loss_limit", 0)}
+            "daily_loss_limit": u.get("daily_loss_limit", 0),
+            "discord_id": u.get("discord_id"), "discord_username": u.get("discord_username")}
 
 def gen_referral_code() -> str:
     return uuid.uuid4().hex[:6].upper()
@@ -226,6 +236,151 @@ async def set_balance(inp: BalanceIn, user=Depends(get_current_user)):
     if inp.balance < 0:
         raise HTTPException(status_code=400, detail="Balance cannot be negative")
     await db.users.update_one({"id": user["id"]}, {"$set": {"account_balance": inp.balance}})
+    u = await db.users.find_one({"id": user["id"]})
+    return public_user(u)
+
+# ---------- Discord OAuth + role management ----------
+def _discord_configured() -> bool:
+    return bool(DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET and DISCORD_BOT_TOKEN
+                and DISCORD_GUILD_ID and DISCORD_ROLE_ID)
+
+def _make_discord_state(data: dict) -> str:
+    payload = {**data, "exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
+    return jwt.encode(payload, JWT_SECRET, algorithm=ALGO)
+
+def _discord_authorize_url(redirect_uri: str, state: str) -> str:
+    q = urlencode({"client_id": DISCORD_CLIENT_ID, "redirect_uri": redirect_uri,
+                   "response_type": "code", "scope": "identify", "state": state})
+    return f"{DISCORD_OAUTH_AUTHORIZE}?{q}"
+
+async def discord_exchange_code(code: str, redirect_uri: str):
+    data = {"client_id": DISCORD_CLIENT_ID, "client_secret": DISCORD_CLIENT_SECRET,
+            "grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri}
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            tr = await c.post(f"{DISCORD_API}/oauth2/token", data=data,
+                              headers={"Content-Type": "application/x-www-form-urlencoded"})
+            if tr.status_code != 200:
+                logger.error(f"discord token err {tr.status_code} {tr.text}")
+                return None
+            access = tr.json().get("access_token")
+            ur = await c.get(f"{DISCORD_API}/users/@me",
+                             headers={"Authorization": f"Bearer {access}"})
+            if ur.status_code != 200:
+                logger.error(f"discord user err {ur.status_code} {ur.text}")
+                return None
+            return ur.json()
+    except Exception as e:
+        logger.error(f"discord exchange err {e}")
+        return None
+
+async def discord_set_role(discord_id: str, grant: bool) -> bool:
+    if not (_discord_configured() and discord_id):
+        return False
+    url = f"{DISCORD_API}/guilds/{DISCORD_GUILD_ID}/members/{discord_id}/roles/{DISCORD_ROLE_ID}"
+    headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await (c.put(url, headers=headers) if grant else c.delete(url, headers=headers))
+        ok = r.status_code in (200, 201, 204)
+        if not ok:
+            logger.error(f"discord role {'grant' if grant else 'revoke'} err {r.status_code} {r.text}")
+        return ok
+    except Exception as e:
+        logger.error(f"discord role err {e}")
+        return False
+
+async def grant_role_if_linked(uid: str):
+    u = await db.users.find_one({"id": uid})
+    if u and u.get("discord_id"):
+        await discord_set_role(u["discord_id"], True)
+
+async def revoke_role_by_query(query: dict):
+    u = await db.users.find_one(query)
+    if u and u.get("discord_id"):
+        await discord_set_role(u["discord_id"], False)
+
+def _discord_app_redirect(rt: str, params: dict) -> HTMLResponse:
+    if not rt:
+        return HTMLResponse("<html><body style='background:#121212;color:#fff;font-family:sans-serif;text-align:center;padding-top:80px'><p>Discord linked. You can close this window and return to the app.</p></body></html>")
+    sep = "&" if "?" in rt else "?"
+    target = rt + sep + urlencode(params)
+    return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="0;url={target}"><title>Redirecting…</title></head>
+<body style="background:#121212;color:#fff;font-family:sans-serif;text-align:center;padding-top:80px">
+<p>Discord connected. Returning to the app…</p>
+<a href="{target}" style="color:#5865F2">Tap here if not redirected</a>
+<script>window.location.href="{target}";</script></body></html>""")
+
+class DiscordLinkIn(BaseModel):
+    origin: str
+    return_url: str
+
+@api.post("/auth/discord/link-url")
+async def discord_link_url(inp: DiscordLinkIn, user=Depends(get_current_user)):
+    if not _discord_configured():
+        raise HTTPException(status_code=503, detail="Discord not configured")
+    redirect_uri = f"{inp.origin}/api/auth/discord/callback"
+    state = _make_discord_state({"mode": "link", "uid": user["id"],
+                                 "rt": inp.return_url, "redirect": redirect_uri})
+    return {"url": _discord_authorize_url(redirect_uri, state)}
+
+@api.get("/auth/discord/login-url")
+async def discord_login_url(origin: str, return_url: str):
+    if not _discord_configured():
+        raise HTTPException(status_code=503, detail="Discord not configured")
+    redirect_uri = f"{origin}/api/auth/discord/callback"
+    state = _make_discord_state({"mode": "login", "rt": return_url, "redirect": redirect_uri})
+    return {"url": _discord_authorize_url(redirect_uri, state)}
+
+@api.get("/auth/discord/callback", response_class=HTMLResponse)
+async def discord_callback(code: str = "", state: str = "", error: str = ""):
+    try:
+        st = jwt.decode(state, JWT_SECRET, algorithms=[ALGO])
+    except Exception:
+        return _discord_app_redirect("", {"discord": "error"})
+    rt = st.get("rt", "")
+    if error or not code:
+        return _discord_app_redirect(rt, {"discord": "cancelled"})
+    redirect_uri = st.get("redirect")
+    duser = await discord_exchange_code(code, redirect_uri)
+    if not duser or not duser.get("id"):
+        return _discord_app_redirect(rt, {"discord": "error"})
+    discord_id = str(duser["id"])
+    username = duser.get("global_name") or duser.get("username")
+    mode = st.get("mode")
+    if mode == "link":
+        uid = st.get("uid")
+        existing = await db.users.find_one({"discord_id": discord_id})
+        if existing and existing.get("id") != uid:
+            return _discord_app_redirect(rt, {"discord": "conflict"})
+        await db.users.update_one({"id": uid},
+            {"$set": {"discord_id": discord_id, "discord_username": username}})
+        u = await db.users.find_one({"id": uid})
+        if u and effective_tier(u) != "free":
+            await discord_set_role(discord_id, True)
+        return _discord_app_redirect(rt, {"discord": "linked"})
+    # login mode
+    u = await db.users.find_one({"discord_id": discord_id})
+    if not u:
+        uid = str(uuid.uuid4())
+        u = {"id": uid, "email": f"discord_{discord_id}@bca.local",
+             "password_hash": hash_pw(uuid.uuid4().hex),
+             "subscription_tier": "free", "account_balance": 10000,
+             "referral_code": gen_referral_code(), "bonus_trades": 0,
+             "referral_count": 0, "referred_by": None,
+             "discord_id": discord_id, "discord_username": username,
+             "created_at": datetime.now(timezone.utc).isoformat()}
+        await db.users.insert_one(u)
+    token = make_token(u["id"])
+    return _discord_app_redirect(rt, {"discord": "login", "token": token})
+
+@api.post("/auth/discord/unlink")
+async def discord_unlink(user=Depends(get_current_user)):
+    if user.get("discord_id"):
+        await discord_set_role(user["discord_id"], False)
+    await db.users.update_one({"id": user["id"]},
+        {"$unset": {"discord_id": "", "discord_username": ""}})
     u = await db.users.find_one({"id": user["id"]})
     return public_user(u)
 
@@ -815,6 +970,7 @@ async def payment_status(session_id: str, user=Depends(get_current_user)):
         await db.users.update_one({"id": user["id"]}, {"$set": {
             "subscription_tier": tier, "stripe_subscription_id": session.get("subscription"),
             "stripe_customer_id": session.get("customer")}})
+        await grant_role_if_linked(user["id"])
     u = await db.users.find_one({"id": user["id"]})
     return {"paid": paid, "session_status": session.get("status"),
             "payment_status": session.get("payment_status"), "user": public_user(u)}
@@ -829,6 +985,8 @@ async def cancel_subscription(user=Depends(get_current_user)):
     except Exception as e:
         logger.error(f"cancel err {e}")
         raise HTTPException(status_code=502, detail="Could not cancel subscription")
+    if user.get("discord_id"):
+        await discord_set_role(user["discord_id"], False)
     await db.users.update_one({"id": user["id"]},
         {"$set": {"subscription_tier": "free", "stripe_subscription_id": None}})
     u = await db.users.find_one({"id": user["id"]})
@@ -854,15 +1012,18 @@ async def stripe_webhook(request: Request):
             await db.users.update_one({"id": uid}, {"$set": {
                 "subscription_tier": tier, "stripe_subscription_id": obj.get("subscription"),
                 "stripe_customer_id": obj.get("customer")}})
+            await grant_role_if_linked(uid)
             await db.payments.update_one({"session_id": obj.get("id")},
                 {"$set": {"status": "completed", "updated_at": datetime.now(timezone.utc).isoformat()}})
     elif etype == "customer.subscription.deleted":
         # Subscription ended/cancelled -> downgrade to free.
+        await revoke_role_by_query({"stripe_subscription_id": obj.get("id")})
         await db.users.update_one({"stripe_subscription_id": obj.get("id")},
             {"$set": {"subscription_tier": "free", "stripe_subscription_id": None}})
     elif etype == "invoice.payment_failed":
         cust = obj.get("customer")
         if cust:
+            await revoke_role_by_query({"stripe_customer_id": cust})
             await db.users.update_one({"stripe_customer_id": cust},
                 {"$set": {"subscription_tier": "free"}})
     return {"received": True}
@@ -1173,7 +1334,8 @@ async def import_csv(inp: ImportCsvIn, user=Depends(get_current_user)):
 
 @api.get("/config")
 async def config():
-    return {"promo_active": promo_active(), "promo_end": PROMO_END.isoformat()}
+    return {"promo_active": promo_active(), "promo_end": PROMO_END.isoformat(),
+            "discord_enabled": _discord_configured()}
 
 app.include_router(api)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"],

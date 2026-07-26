@@ -6,10 +6,11 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/context/ToastContext";
+import DiscordLoginButton from "@/src/components/DiscordLoginButton";
 import { colors, spacing, radius, font, fs } from "@/src/theme";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, loginWithToken } = useAuth();
   const router = useRouter();
   const toast = useToast();
   const insets = useSafeAreaInsets();
@@ -54,6 +55,8 @@ export default function Login() {
             <Pressable testID="go-register" onPress={() => router.push("/(auth)/register")} style={styles.linkWrap}>
               <Text style={styles.link}>New here? <Text style={styles.linkBold}>Create an account</Text></Text>
             </Pressable>
+
+            <DiscordLoginButton onLogin={async (t) => { await loginWithToken(t); router.replace("/(tabs)"); }} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

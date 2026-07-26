@@ -1,0 +1,35 @@
+{
+  "summary": "Backend-only regression + new Discord OAuth2 feature testing for Blue Collar Alpha. All 16 tests passed (100%). Verified /api/config exposes discord_enabled=true and promo_active; /api/auth/discord/login-url (public) and /link-url (auth-gated) generate correct discord.com/api/oauth2/authorize URLs with client_id, correct redirect_uri, scope=identify, signed JWT state; callback handles invalid/missing state/code gracefully with HTML 200 (no 500); /api/auth/discord/unlink returns public user shape and is auth-gated (401 without token); /api/auth/me returns discord_id and discord_username keys for both new user and seeded premium account (stocktradesrvl@gmail.com); core auth regression (register/login/me/wrong-password) still works; Stripe /api/payments/webhook still returns 400 when STRIPE_WEBHOOK_SECRET is empty. No live Discord role grant/revoke API calls were exercised (per agent-to-agent note) since that requires a real guild member.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_discord_oauth.py",
+    "/app/test_reports/pytest/discord_oauth.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 1379 lines - consider modularizing (auth, discord, stripe, trades, dashboard routers) for maintainability, but not blocking.",
+    "Discord callback intentionally returns HTML 200 for invalid state so mobile deep-link recovers gracefully; behavior is correct and defensive.",
+    "grant_role_if_linked/revoke_role_by_query are fire-and-forget best-effort (do not raise on Discord API failure) which is the right choice for webhook/payment flows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_discord_oauth.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "N/A (skipped per request)"
+  },
+  "seed_data_creation": "Two throwaway TEST_disc_* and TEST_reg_* users were registered via /api/auth/register during tests (safe to leave; email is prefixed TEST_).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL is EXPO_PUBLIC_BACKEND_URL in frontend/.env (https://strategy-tracker-16.preview.emergentagent.com). Discord feature is fully wired end-to-end at API boundary. Live Discord role PUT/DELETE calls cannot be verified without a real user who joined the guild - do NOT fail on that. Seeded premium account stocktradesrvl@gmail.com / TradeAdmin123 works and returns subscription_tier=premium with discord_id/discord_username fields (null until linked). Test suite: /app/backend/tests/test_discord_oauth.py.",
+  "rca_of_issue": "N/A - no issues found."
+}

@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api } from "@/src/api";
 
-type User = { id: string; email: string; subscription_tier: "free" | "pro" | "premium"; account_balance: number; referral_code?: string; bonus_trades?: number; referral_count?: number };
+type User = { id: string; email: string; subscription_tier: "free" | "pro" | "premium"; account_balance: number; referral_code?: string; bonus_trades?: number; referral_count?: number; discord_id?: string | null; discord_username?: string | null };
 type AuthCtx = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithToken: (token: string) => Promise<void>;
   register: (email: string, password: string, referral_code?: string) => Promise<void>;
   logout: () => Promise<void>;
   setTier: (tier: string) => Promise<void>;
@@ -36,6 +37,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await api.setToken(r.access_token);
     setUser(r.user);
   };
+  const loginWithToken = async (token: string) => {
+    await api.setToken(token);
+    setUser(await api.get("/auth/me"));
+  };
   const register = async (email: string, password: string, referral_code?: string) => {
     const r = await api.post("/auth/register", { email, password, referral_code });
     await api.setToken(r.access_token);
@@ -49,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
   const refresh = async () => { try { setUser(await api.get("/auth/me")); } catch {} };
 
-  return <Ctx.Provider value={{ user, loading, login, register, logout, setTier, setBalance, changePassword, refresh }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, loading, login, loginWithToken, register, logout, setTier, setBalance, changePassword, refresh }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {
