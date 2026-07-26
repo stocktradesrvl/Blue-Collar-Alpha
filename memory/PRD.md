@@ -96,6 +96,7 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 - Frontend: app/gex.tsx — symbol tabs, Net GEX (green positive=suppressed vol / red negative=amplified vol), spot, Gamma Flip / Call Wall / Put Wall cards, Strike Gamma Heatmap (bars colored by gex sign, wall-tagged), pull-to-refresh, Premium lock screen w/ upgrade CTA. Dashboard entry: gex-btn -> /gex.
 - Next queued: weekly summary emails (Resend).
 - Dashboard "GEX · At a Glance" widget (2026-07): Premium-only card on Dashboard showing net GEX (color-coded) + flip level for SPY/SPX/XSP; taps through to /gex. Fetched via GET /api/gex in dashboard load(); hidden for non-premium (402) or when no snapshots exist. testID gex-glance.
+- GEX upgrade teaser + stale indicator (2026-07): (a) Non-premium users see a locked "GEX · Options Heatmap · PREMIUM" teaser card (testID gex-teaser) on the Dashboard — shown in BOTH empty and populated states — that taps to Profile/upgrade. (b) GEX screen shows an amber "Data may be stale" banner + amber "Updated" text when the selected symbol's snapshot is older than 26h (daily push cadence). Verified both via screenshots.
 
 ## Weekly Digest Emails via Resend (2026-07):
 - Integration: Resend Python SDK (resend==2.34.0). Keys in backend/.env: RESEND_API_KEY, RESEND_FROM_EMAIL ("Blue Collar Alpha <russelllewis@montanahorizonventuresllc.com>"). resend.api_key set at startup.

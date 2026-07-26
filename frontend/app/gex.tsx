@@ -87,6 +87,9 @@ export default function Gex() {
   const strikes = (d?.strikes || []).slice().sort((a: any, b: any) => b.strike - a.strike);
   const maxGex = Math.max(1, ...strikes.map((x: any) => Math.abs(x.gex ?? 0)));
   const netPos = (d?.net_gex ?? 0) >= 0;
+  const STALE_MS = 26 * 3600 * 1000; // flag if bot hasn't pushed in >26h (daily cadence)
+  const snapTs = d ? new Date(d.timestamp || d.received_at).getTime() : 0;
+  const isStale = !!d && !isNaN(snapTs) && (Date.now() - snapTs) > STALE_MS;
 
   const tagFor = (strike: number): string | undefined => {
     if (d?.call_wall != null && strike === d.call_wall) return "Call Wall";
@@ -131,6 +134,13 @@ export default function Gex() {
 
           {error ? <Text style={styles.errTxt}>{error}</Text> : null}
 
+          {isStale && (
+            <View style={styles.staleBanner}>
+              <Ionicons name="warning-outline" size={16} color={colors.warning} />
+              <Text style={styles.staleTxt}>Data may be stale — your bot hasn't pushed {sym} since {ago(d.timestamp || d.received_at)}.</Text>
+            </View>
+          )}
+
           {!d ? (
             <View style={styles.waitCard}>
               <Ionicons name="hourglass-outline" size={32} color={colors.onSurface3} />
@@ -152,7 +162,7 @@ export default function Gex() {
                     <Text style={styles.spotVal}>{fmtPx(d.spot)}</Text>
                   </View>
                 </View>
-                <Text style={styles.updated}>Updated {ago(d.timestamp || d.received_at)}</Text>
+                <Text style={[styles.updated, isStale && { color: colors.warning }]}>Updated {ago(d.timestamp || d.received_at)}</Text>
               </View>
 
               <View style={styles.levelGrid}>
@@ -189,6 +199,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
   empty: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.base, textAlign: "center" },
   errTxt: { color: colors.error, fontFamily: font.text, fontSize: fs.sm, textAlign: "center" },
+  staleBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.warning + "18", borderRadius: radius.md, borderWidth: 1, borderColor: colors.warning + "55", paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  staleTxt: { flex: 1, color: colors.onSurface, fontFamily: font.text, fontSize: fs.sm, lineHeight: 18 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider },
   backBtn: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: radius.pill, backgroundColor: colors.surface2 },
   headerTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },

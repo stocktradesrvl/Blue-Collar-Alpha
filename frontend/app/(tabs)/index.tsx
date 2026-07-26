@@ -125,6 +125,29 @@ export default function Dashboard() {
   const up = (stats?.total_pnl || 0) >= 0;
   const heroTint = empty ? "rgba(46,118,232,0.30)" : up ? "rgba(0,230,118,0.28)" : "rgba(255,61,0,0.28)";
 
+  const gexTeaser = (!gex && user?.subscription_tier !== "premium") ? (
+    <Animated.View entering={FadeInDown.duration(600).delay(300)}>
+      <Pressable testID="gex-teaser" onPress={() => router.push("/(tabs)/profile")}>
+        <GradientCard accent={A.accent} style={styles.gexCard}>
+          <View style={styles.gexHead}>
+            <View style={styles.gexTitleRow}>
+              <Ionicons name="lock-closed" size={16} color={A.accent} />
+              <Text style={styles.gexTitle}>GEX · Options Heatmap</Text>
+            </View>
+            <View style={[styles.gexPremiumPill, { backgroundColor: A.accentTint }]}>
+              <Text style={[styles.gexPremiumTxt, { color: A.accent }]}>PREMIUM</Text>
+            </View>
+          </View>
+          <Text style={styles.gexTeaserSub}>Unlock live net GEX, gamma flip levels, call/put walls and strike heatmaps for SPY, SPX & XSP.</Text>
+          <View style={[styles.gexUnlockBtn, { backgroundColor: A.accent }]}>
+            <Ionicons name="sparkles" size={15} color={A.onAccent} />
+            <Text style={[styles.gexUnlockTxt, { color: A.onAccent }]}>Upgrade to Premium</Text>
+          </View>
+        </GradientCard>
+      </Pressable>
+    </Animated.View>
+  ) : null;
+
   return (
     <View style={styles.flex}>
       <ScreenBackground tone={empty ? "neutral" : up ? "up" : "down"} />
@@ -197,6 +220,7 @@ export default function Dashboard() {
                 <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
               </Pressable>
             </Animated.View>
+            <View style={{ marginTop: spacing.md }}>{gexTeaser}</View>
           </>
         ) : (
           <>
@@ -315,6 +339,8 @@ export default function Dashboard() {
                 </Pressable>
               </Animated.View>
             )}
+
+            {!gex && user?.subscription_tier !== "premium" && gexTeaser}
 
             {lastTrade?.has_trade && (
               <Animated.View entering={FadeInDown.duration(700).delay(320)}>
@@ -468,6 +494,11 @@ const styles = StyleSheet.create({
   gexSym: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base, letterSpacing: 0.5 },
   gexNet: { fontFamily: font.displayBold, fontSize: fs.lg },
   gexFlip: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
+  gexPremiumPill: { borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  gexPremiumTxt: { fontFamily: font.displayBold, fontSize: fs.sm, letterSpacing: 1 },
+  gexTeaserSub: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, lineHeight: 20 },
+  gexUnlockBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, borderRadius: radius.md, paddingVertical: spacing.md, marginTop: spacing.xs },
+  gexUnlockTxt: { fontFamily: font.displayBold, fontSize: fs.base },
   debriefHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   debriefTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   debriefTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
