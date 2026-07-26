@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Refre
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Polyline, Line as SvgLine } from "react-native-svg";
 import { api } from "@/src/api";
 import { colors, spacing, radius, font, fs } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
@@ -33,6 +34,53 @@ function ago(iso?: string): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
+
+function Sparkline({ data, color, width = 300, height = 44 }: { data: any[]; color: string; width?: number; height?: number }) {
+  if (!data || data.length < 2) return null;
+  const vals = data.map((d) => d.v);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = (max - min) || 1;
+  const pts = data.map((d, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((d.v - min) / range) * (height - 6) - 3;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const zeroY = min < 0 && max > 0 ? height - ((0 - min) / range) * (height - 6) - 3 : null;
+  return (
+    <Svg width={width} height={height}>
+      {zeroY != null && <SvgLine x1={0} y1={zeroY} x2={width} y2={zeroY} stroke={colors.border} strokeWidth={1} strokeDasharray="3,3" />}
+      <Polyline points={pts} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function ExpectedRange({ spot, put, call, accent }: { spot?: number; put?: number; call?: number; accent: string }) {
+  if (spot == null || put == null || call == null || call <= put) return null;
+  const pct = Math.min(Math.max((spot - put) / (call - put), 0), 1);
+  const toCall = call - spot;
+  const toPut = spot - put;
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Expected Range (dealer walls)</Text>
+      <View style={styles.rangeBar}>
+        <View style={styles.rangeMarker} />
+        <View style={[styles.rangeDot, { left: `${pct * 100}%`, backgroundColor: accent }]} />
+      </View>
+      <View style={styles.rangeLabels}>
+        <View>
+          <Text style={[styles.rangeEnd, { color: colors.error }]}>{put.toFixed(0)}</Text>
+          <Text style={styles.rangeSub}>Put wall · -{toPut.toFixed(2)}</Text>
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={[styles.rangeEnd, { color: colors.success }]}>{call.toFixed(0)}</Text>
+          <Text style={[styles.rangeSub, { textAlign: "right" }]}>Call wall · +{toCall.toFixed(2)}</Text>
+        </View>
+      </View>
+      <Text style={styles.rangeNote}>Spot {spot.toFixed(2)} sits {(pct * 100).toFixed(0)}% between the put and call walls — the band dealers are likely to defend.</Text>
+    </View>
+  );
+}
+
 
 function StrikeRow({ s, max, tag }: { s: any; max: number; tag?: string }) {
   const pos = (s.gex ?? 0) >= 0;
@@ -137,7 +185,7 @@ export default function Gex() {
           {isStale && (
             <View style={styles.staleBanner}>
               <Ionicons name="warning-outline" size={16} color={colors.warning} />
-              <Text style={styles.staleTxt}>Data may be stale — your bot hasn't pushed {sym} since {ago(d.timestamp || d.received_at)}.</Text>
+              <Text style={styles.staleTxt}>Data may be stale — your bot hasn’t pushed {sym} since {ago(d.timestamp || d.received_at)}.</Text>
             </View>
           )}
 
@@ -163,6 +211,12 @@ export default function Gex() {
                   </View>
                 </View>
                 <Text style={[styles.updated, isStale && { color: colors.warning }]}>Updated {ago(d.timestamp || d.received_at)}</Text>
+                {d.net_gex_history?.length > 1 && (
+                  <View style={styles.trendWrap}>
+                    <Text style={styles.trendLabel}>Net GEX trend · last {d.net_gex_history.length}</Text>
+                    <Sparkline data={d.net_gex_history} color={A.accent} />
+                  </View>
+                )}
               </View>
 
               <View style={styles.levelGrid}>
@@ -179,6 +233,8 @@ export default function Gex() {
                   <Text style={[styles.levelVal, { color: colors.error }]}>{fmtPx(d.put_wall)}</Text>
                 </View>
               </View>
+
+              <ExpectedRange spot={d.spot} put={d.put_wall} call={d.call_wall} accent={A.accent} />
 
               {strikes.length ? (
                 <View style={styles.section}>
@@ -219,6 +275,15 @@ const styles = StyleSheet.create({
   spotLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, letterSpacing: 1 },
   spotVal: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
   updated: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
+  trendWrap: { marginTop: spacing.sm, gap: 2 },
+  trendLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.5 },
+  rangeBar: { height: 10, borderRadius: radius.pill, backgroundColor: colors.surface3, justifyContent: "center", marginTop: spacing.xs, marginBottom: spacing.sm },
+  rangeMarker: { position: "absolute", left: 0, right: 0, height: 10, borderRadius: radius.pill, backgroundColor: colors.error + "22" },
+  rangeDot: { position: "absolute", width: 14, height: 14, borderRadius: 7, marginLeft: -7, borderWidth: 2, borderColor: colors.surface },
+  rangeLabels: { flexDirection: "row", justifyContent: "space-between" },
+  rangeEnd: { fontFamily: font.displayBold, fontSize: fs.lg },
+  rangeSub: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
+  rangeNote: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, lineHeight: 18, marginTop: spacing.sm },
   levelGrid: { flexDirection: "row", gap: spacing.sm },
   levelCard: { flex: 1, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, gap: 2 },
   levelLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },

@@ -303,15 +303,44 @@ async def discord_set_role(discord_id: str, grant: bool) -> bool:
         logger.error(f"discord role err {e}")
         return False
 
+async def discord_dm(discord_id: str, content: str) -> bool:
+    if not (DISCORD_BOT_TOKEN and discord_id):
+        return False
+    headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}", "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            ch = await c.post(f"{DISCORD_API}/users/@me/channels", headers=headers,
+                              json={"recipient_id": str(discord_id)})
+            if ch.status_code not in (200, 201):
+                logger.error(f"discord dm channel err {ch.status_code} {ch.text}")
+                return False
+            cid = ch.json().get("id")
+            m = await c.post(f"{DISCORD_API}/channels/{cid}/messages", headers=headers,
+                             json={"content": content})
+            return m.status_code in (200, 201)
+    except Exception as e:
+        logger.error(f"discord dm err {e}")
+        return False
+
+def _welcome_msg(tier: str) -> str:
+    t = "Premium" if tier == "premium" else "Pro"
+    return (f"🎉 **Welcome to Blue Collar Alpha {t}!**\n"
+            f"Your subscriber role has been granted — you now have access to the community and your "
+            f"premium features in the app. Trade smart out there. 📈")
+
 async def grant_role_if_linked(uid: str):
     u = await db.users.find_one({"id": uid})
     if u and u.get("discord_id"):
         await discord_set_role(u["discord_id"], True)
+        if not u.get("discord_welcomed"):
+            if await discord_dm(u["discord_id"], _welcome_msg(effective_tier(u))):
+                await db.users.update_one({"id": uid}, {"$set": {"discord_welcomed": True}})
 
 async def revoke_role_by_query(query: dict):
     u = await db.users.find_one(query)
     if u and u.get("discord_id"):
         await discord_set_role(u["discord_id"], False)
+        await db.users.update_one({"id": u["id"]}, {"$unset": {"discord_welcomed": ""}})
 
 def _discord_app_redirect(rt: str, params: dict) -> HTMLResponse:
     if not rt:
@@ -393,7 +422,7 @@ async def discord_unlink(user=Depends(get_current_user)):
     if user.get("discord_id"):
         await discord_set_role(user["discord_id"], False)
     await db.users.update_one({"id": user["id"]},
-        {"$unset": {"discord_id": "", "discord_username": ""}})
+        {"$unset": {"discord_id": "", "discord_username": "", "discord_welcomed": ""}})
     u = await db.users.find_one({"id": user["id"]})
     return public_user(u)
 
@@ -1128,7 +1157,8 @@ async def cancel_subscription(user=Depends(get_current_user)):
     if user.get("discord_id"):
         await discord_set_role(user["discord_id"], False)
     await db.users.update_one({"id": user["id"]},
-        {"$set": {"subscription_tier": "free", "stripe_subscription_id": None}})
+        {"$set": {"subscription_tier": "free", "stripe_subscription_id": None},
+         "$unset": {"discord_welcomed": ""}})
     u = await db.users.find_one({"id": user["id"]})
     return {"ok": True, "user": public_user(u)}
 
@@ -1513,6 +1543,8 @@ async def ingest_gex(inp: GexIn, x_ingest_key: str = Header(default="")):
     if not doc.get("timestamp"):
         doc["timestamp"] = now
     await db.gex_snapshots.update_one({"symbol": sym}, {"$set": doc}, upsert=True)
+    await db.gex_snapshots.update_one({"symbol": sym},
+        {"$push": {"net_gex_history": {"$each": [{"t": doc["timestamp"], "v": doc["net_gex"]}], "$slice": -30}}})
     return {"ok": True, "symbol": sym, "strikes": len(doc.get("strikes", []))}
 
 @api.get("/gex")
