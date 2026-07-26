@@ -33,6 +33,15 @@ const HABIT_PHRASES: Record<string, string> = {
 };
 const HABIT_DISMISS_KEY = "tm_habit_alert_dismissed";
 
+function fmtGexShort(v: number): string {
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  const abs = Math.abs(v); const sign = v < 0 ? "-" : "";
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(0)}M`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(0)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+}
+
 
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
@@ -52,6 +61,7 @@ export default function Dashboard() {
   const [mistakes, setMistakes] = useState<any>(null);
   const [mWindow, setMWindow] = useState<"30" | "all">("30");
   const [alert30, setAlert30] = useState<any>(null);
+  const [gex, setGex] = useState<any>(null);
   const [dismissedSig, setDismissedSig] = useState<string | null>(null);
 
   const loadMistakes = useCallback(async (w: "30" | "all") => {
@@ -67,6 +77,7 @@ export default function Dashboard() {
     try { setWeekly(await api.get("/dashboard/weekly")); } catch {}
     try { setLastTrade(await api.get("/dashboard/last-trade")); } catch {}
     try { setAlert30(await api.get("/dashboard/mistake-trends?window=30")); } catch {}
+    try { const g = await api.get("/gex"); setGex(g?.snapshots?.length ? g.snapshots : null); } catch { setGex(null); }
     loadMistakes(mWindow);
     try {
       const b = await api.get("/payments/billing");
@@ -149,7 +160,7 @@ export default function Dashboard() {
             <View style={styles.habitIcon}><Ionicons name="pulse" size={18} color={colors.warning} /></View>
             <Pressable testID="habit-alert" style={{ flex: 1 }} onPress={() => router.push("/mistakes?window=30")}>
               <Text style={styles.habitTxt}>
-                You've <Text style={styles.habitBold}>{HABIT_PHRASES[topHabit.tag] || topHabit.tag.toLowerCase()}</Text> {topHabit.count}× in the last 30 days{topHabit.pnl < 0 ? ` · ${money(topHabit.pnl)}` : ""}
+                You’ve <Text style={styles.habitBold}>{HABIT_PHRASES[topHabit.tag] || topHabit.tag.toLowerCase()}</Text> {topHabit.count}× in the last 30 days{topHabit.pnl < 0 ? ` · ${money(topHabit.pnl)}` : ""}
               </Text>
             </Pressable>
             <Pressable testID="habit-alert-dismiss" hitSlop={12} onPress={dismissHabit} style={styles.habitClose}>
@@ -162,7 +173,7 @@ export default function Dashboard() {
           <Animated.View entering={FadeInDown.duration(600)} style={styles.lossBanner}>
             <View style={styles.lossIcon}><Ionicons name="hand-left" size={18} color={colors.error} /></View>
             <Text style={styles.lossTxt}>
-              Daily loss limit hit — you're down <Text style={styles.lossBold}>{money(stats?.daily_pnl || 0)}</Text> (limit {money(-(user?.daily_loss_limit || 0))}). Consider stepping away.
+              Daily loss limit hit — you’re down <Text style={styles.lossBold}>{money(stats?.daily_pnl || 0)}</Text> (limit {money(-(user?.daily_loss_limit || 0))}). Consider stepping away.
             </Text>
           </Animated.View>
         )}
@@ -276,6 +287,34 @@ export default function Dashboard() {
                 <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
               </Pressable>
             </Animated.View>
+
+            {gex && (
+              <Animated.View entering={FadeInDown.duration(600).delay(300)}>
+                <Pressable testID="gex-glance" onPress={() => router.push("/gex")}>
+                  <GradientCard accent={A.accent} style={styles.gexCard}>
+                    <View style={styles.gexHead}>
+                      <View style={styles.gexTitleRow}>
+                        <Ionicons name="pulse" size={16} color={A.accent} />
+                        <Text style={styles.gexTitle}>GEX · At a Glance</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colors.onSurface3} />
+                    </View>
+                    <View style={styles.gexRow}>
+                      {gex.map((s: any) => {
+                        const pos = (s.net_gex ?? 0) >= 0;
+                        return (
+                          <View key={s.symbol} style={styles.gexItem}>
+                            <Text style={styles.gexSym}>{s.symbol}</Text>
+                            <Text style={[styles.gexNet, { color: pos ? colors.success : colors.error }]}>{fmtGexShort(s.net_gex ?? 0)}</Text>
+                            <Text style={styles.gexFlip}>flip {s.flip_point != null ? Number(s.flip_point).toFixed(0) : "—"}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </GradientCard>
+                </Pressable>
+              </Animated.View>
+            )}
 
             {lastTrade?.has_trade && (
               <Animated.View entering={FadeInDown.duration(700).delay(320)}>
@@ -420,6 +459,15 @@ const styles = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.md },
   weeklyCard: { marginBottom: spacing.md, gap: spacing.md, ...cardShadow },
   debriefCard: { marginBottom: spacing.md, gap: spacing.sm, ...cardShadow },
+  gexCard: { marginBottom: spacing.md, gap: spacing.sm, ...cardShadow },
+  gexHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  gexTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  gexTitle: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1 },
+  gexRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm },
+  gexItem: { flex: 1, alignItems: "center", gap: 2 },
+  gexSym: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base, letterSpacing: 0.5 },
+  gexNet: { fontFamily: font.displayBold, fontSize: fs.lg },
+  gexFlip: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
   debriefHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   debriefTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   debriefTitle: { color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },

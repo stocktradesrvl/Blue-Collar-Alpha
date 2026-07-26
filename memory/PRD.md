@@ -95,6 +95,7 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 - Read (Premium-gated, 402 else): GET /api/gex (all latest snapshots) + GET /api/gex/{symbol}.
 - Frontend: app/gex.tsx — symbol tabs, Net GEX (green positive=suppressed vol / red negative=amplified vol), spot, Gamma Flip / Call Wall / Put Wall cards, Strike Gamma Heatmap (bars colored by gex sign, wall-tagged), pull-to-refresh, Premium lock screen w/ upgrade CTA. Dashboard entry: gex-btn -> /gex.
 - Next queued: weekly summary emails (Resend).
+- Dashboard "GEX · At a Glance" widget (2026-07): Premium-only card on Dashboard showing net GEX (color-coded) + flip level for SPY/SPX/XSP; taps through to /gex. Fetched via GET /api/gex in dashboard load(); hidden for non-premium (402) or when no snapshots exist. testID gex-glance.
 
 ## Weekly Digest Emails via Resend (2026-07):
 - Integration: Resend Python SDK (resend==2.34.0). Keys in backend/.env: RESEND_API_KEY, RESEND_FROM_EMAIL ("Blue Collar Alpha <russelllewis@montanahorizonventuresllc.com>"). resend.api_key set at startup.
