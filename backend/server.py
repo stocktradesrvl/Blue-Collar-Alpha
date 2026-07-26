@@ -46,6 +46,7 @@ GEX_SYMBOLS = ["SPY", "SPX", "XSP"]
 import resend
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', '')
+PUBLIC_APP_URL = os.environ.get('PUBLIC_APP_URL', '').rstrip('/')
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 # Fixed server-side pricing (never trust client amounts). Amounts in cents.
@@ -849,7 +850,7 @@ async def _compute_weekly_summary(uid: str):
             "best_setup_pnl": round(setup_pnl.get(best_setup, 0), 2) if best_setup else 0,
             "violations": violations}
 
-def _digest_html(s: dict) -> str:
+def _digest_html(s: dict, unsub_url: str = "") -> str:
     tw = s["tw"]; lw = s["lw"]
     pnl_color = "#22C55E" if tw["pnl"] >= 0 else "#EF4444"
     pnl_str = ("+$" + f"{tw['pnl']:,.2f}") if tw["pnl"] >= 0 else ("-$" + f"{abs(tw['pnl']):,.2f}")
@@ -884,16 +885,45 @@ def _digest_html(s: dict) -> str:
       {viol_row}
     </table>
     <p style="color:#6B7280;font-size:12px;margin-top:24px;line-height:1.5">Open the app for your full metrics, calendar and AI coach review. You're receiving this because weekly digests are on in your Blue Collar Alpha settings.</p>
+    <p style="color:#4B5563;font-size:11px;margin-top:8px">{('<a href="' + unsub_url + '" style="color:#6B7280">Unsubscribe from weekly recaps</a>') if unsub_url else ''}</p>
   </div>
 </div>
 </body></html>"""
 
+def _make_unsub_token(uid: str) -> str:
+    payload = {"sub": uid, "purpose": "unsub",
+               "exp": datetime.now(timezone.utc) + timedelta(days=365)}
+    return jwt.encode(payload, JWT_SECRET, algorithm=ALGO)
+
+@api.get("/unsubscribe", response_class=HTMLResponse)
+async def unsubscribe(token: str = ""):
+    def page(msg: str, ok: bool):
+        color = "#22C55E" if ok else "#EF4444"
+        return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Blue Collar Alpha</title></head>
+<body style="margin:0;background:#0A0A0A;font-family:Arial,Helvetica,sans-serif;color:#E5E7EB;text-align:center;padding-top:90px">
+<div style="max-width:460px;margin:0 auto;background:#141414;border:1px solid #262626;border-radius:16px;padding:36px 28px">
+<div style="font-size:40px;margin-bottom:8px">{'✅' if ok else '⚠️'}</div>
+<h2 style="margin:0 0 8px;color:{color}">{msg}</h2>
+<p style="color:#9CA3AF;font-size:14px;line-height:1.5">You can re-enable weekly recaps anytime in the app under Profile → Preferences → Weekly Email Recap.</p>
+</div></body></html>""")
+    try:
+        data = jwt.decode(token, JWT_SECRET, algorithms=[ALGO])
+        if data.get("purpose") != "unsub":
+            raise ValueError("bad purpose")
+        uid = data.get("sub")
+    except Exception:
+        return page("This unsubscribe link is invalid or expired.", False)
+    await db.users.update_one({"id": uid}, {"$set": {"weekly_digest_enabled": False}})
+    return page("You're unsubscribed from weekly recaps.", True)
+
 @api.post("/jobs/send-weekly-digest")
-async def send_weekly_digest(x_ingest_key: str = Header(default="")):
+async def send_weekly_digest(x_ingest_key: str = Header(default=""), base_url: str = ""):
     if not GEX_INGEST_KEY or x_ingest_key != GEX_INGEST_KEY:
         raise HTTPException(status_code=401, detail="Invalid ingest key")
     if not (RESEND_API_KEY and RESEND_FROM_EMAIL):
         raise HTTPException(status_code=503, detail="Email not configured")
+    base = (base_url or PUBLIC_APP_URL or "").rstrip("/")
     users = await db.users.find({"weekly_digest_enabled": {"$ne": False}}).to_list(5000)
     sent = 0; skipped = 0; failed = 0
     for u in users:
@@ -905,12 +935,13 @@ async def send_weekly_digest(x_ingest_key: str = Header(default="")):
         if not summary:
             skipped += 1
             continue
+        unsub_url = f"{base}/api/unsubscribe?token={_make_unsub_token(u['id'])}" if base else ""
         try:
             resend.Emails.send({
                 "from": RESEND_FROM_EMAIL,
                 "to": [email],
                 "subject": "Your Weekly Trading Recap 📈",
-                "html": _digest_html(summary),
+                "html": _digest_html(summary, unsub_url),
             })
             sent += 1
         except Exception as e:
