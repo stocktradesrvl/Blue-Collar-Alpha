@@ -3,12 +3,12 @@ from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, json, uuid, re, httpx, hashlib, asyncio, base64, tempfile, hmac, html as _html
+import os, logging, json, uuid, re, httpx, hashlib, asyncio, base64, tempfile, hmac, html as _html, time
 from pathlib import Path
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
-from collections import defaultdict
+from collections import defaultdict, deque
 import bcrypt
 from jose import jwt, JWTError
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
@@ -158,6 +158,38 @@ async def get_current_user(token: str = Depends(oauth2)):
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+# ---------- Lightweight in-memory rate limiter (single-worker) ----------
+_rl_hits: dict = defaultdict(deque)
+
+def _rate_ok(key: str, max_hits: int, window: int) -> bool:
+    now = time.monotonic()
+    dq = _rl_hits[key]
+    while dq and now - dq[0] > window:
+        dq.popleft()
+    if not dq and key in _rl_hits:
+        # keep the map from growing unbounded once a bucket goes idle
+        pass
+    if len(dq) >= max_hits:
+        return False
+    dq.append(now)
+    return True
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+async def auth_rate_limit(request: Request):
+    """Brute-force guard on auth endpoints: max 20 attempts / 5 min per IP."""
+    if not _rate_ok(f"auth:{_client_ip(request)}", 20, 300):
+        raise HTTPException(status_code=429, detail="Too many attempts. Please wait a minute and try again.")
+
+def enforce_ai_limit(user: dict):
+    """Cost/abuse guard on AI endpoints: max 40 requests / min per user."""
+    if not _rate_ok(f"ai:{user['id']}", 40, 60):
+        raise HTTPException(status_code=429, detail="You're going a bit fast — please wait a moment and try again.")
+
 def effective_tier(u: dict) -> str:
     base = u.get("subscription_tier", "free")
     rp = u.get("reward_pro_until")
@@ -244,7 +276,7 @@ def extract_json(text: str):
 
 # ---------- Auth routes ----------
 @api.post("/auth/register")
-async def register(inp: RegisterIn):
+async def register(inp: RegisterIn, _rl=Depends(auth_rate_limit)):
     if await db.users.find_one({"email": inp.email.lower()}):
         raise HTTPException(status_code=400, detail="Email already registered")
     uid = str(uuid.uuid4())
@@ -272,7 +304,7 @@ async def register(inp: RegisterIn):
     return {"access_token": make_token(uid), "token_type": "bearer", "user": public_user(doc)}
 
 @api.post("/auth/login")
-async def login(inp: LoginIn):
+async def login(inp: LoginIn, _rl=Depends(auth_rate_limit)):
     u = await db.users.find_one({"email": inp.email.lower()})
     if not u or not verify_pw(inp.password, u["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -615,6 +647,7 @@ def clean_trade(t: dict) -> dict:
 
 @api.post("/trades/analyze-screenshot")
 async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
+    enforce_ai_limit(user)
     # Free tier monthly limit
     if effective_tier(user) == "free":
         month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -738,6 +771,7 @@ async def last_executed_trade(user=Depends(get_current_user)):
 
 @api.post("/trades/{tid}/debrief")
 async def trade_debrief(tid: str, regenerate: bool = False, user=Depends(get_current_user)):
+    enforce_ai_limit(user)
     t = await db.trades.find_one({"id": tid, "user_id": user["id"]})
     if not t:
         raise HTTPException(status_code=404, detail="Trade not found")
@@ -827,6 +861,7 @@ async def mistake_trends(window: str = "all", user=Depends(get_current_user)):
 
 @api.post("/trades/analyze-chart")
 async def analyze_chart(inp: ScreenshotIn, user=Depends(get_current_user)):
+    enforce_ai_limit(user)
     if TIER_LEVEL.get(effective_tier(user), 0) < 1:
         raise HTTPException(status_code=402, detail="Chart analysis is a Pro feature. Upgrade to unlock.")
     system = ("You are an expert technical analyst. Analyze the chart screenshot and respond ONLY with a valid JSON object.")
@@ -849,6 +884,7 @@ DISCLAIMER = ("This is an educational analysis of how a potential setup aligns w
 
 @api.post("/analyze/pretrade")
 async def analyze_pretrade(inp: PreTradeIn, user=Depends(get_current_user)):
+    enforce_ai_limit(user)
     if TIER_LEVEL.get(effective_tier(user), 0) < 1:
         raise HTTPException(status_code=402, detail="The Pre-Trade Grader is a Pro feature. Upgrade to unlock.")
     # Pull the user's strategies (selected, or all if none chosen) so the AI can pick the best fit.
@@ -1142,6 +1178,7 @@ async def send_weekly_digest(x_ingest_key: str = Header(default=""), base_url: s
 # ---------- Daily report ----------
 @api.get("/reports/daily")
 async def daily_report(user=Depends(get_current_user)):
+    enforce_ai_limit(user)
     today = datetime.now(timezone.utc).date().isoformat()
     trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", 1).to_list(1000)
     todays = [t for t in trades if t.get("created_at", "").startswith(today)]
@@ -1172,6 +1209,7 @@ class VoiceIn(BaseModel):
 async def coach_transcribe(inp: VoiceIn, user=Depends(get_current_user)):
     """Transcribe a short voice note (Whisper) so the trader can journal by voice.
     Optionally returns a brief AI coaching summary of the note."""
+    enforce_ai_limit(user)
     if TIER_LEVEL.get(effective_tier(user), 0) < 2:
         raise HTTPException(status_code=402, detail="Voice journaling is a Premium feature. Upgrade to unlock.")
     ext = (inp.ext or "m4a").lower().lstrip(".")
@@ -1215,6 +1253,7 @@ async def coach_transcribe(inp: VoiceIn, user=Depends(get_current_user)):
 
 @api.post("/coach/chat")
 async def coach_chat(inp: ChatIn, user=Depends(get_current_user)):
+    enforce_ai_limit(user)
     if TIER_LEVEL.get(effective_tier(user), 0) < 2:
         raise HTTPException(status_code=402, detail="AI Coach chat is a Premium feature. Upgrade to unlock.")
     trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", 1).to_list(1000)
