@@ -26,6 +26,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (token) {
       try { setUser(await api.get("/auth/me")); }
       catch { await api.clearToken(); setUser(null); }
+    } else if (process.env.EXPO_PUBLIC_PREVIEW_AUTOLOGIN === "1") {
+      // Preview convenience: auto sign-in so the app is viewable without a login step.
+      // Toggle off by setting EXPO_PUBLIC_PREVIEW_AUTOLOGIN=0 in frontend/.env.
+      try {
+        const email = process.env.EXPO_PUBLIC_PREVIEW_EMAIL || "";
+        const password = process.env.EXPO_PUBLIC_PREVIEW_PASSWORD || "";
+        if (email && password) {
+          const r = await api.post("/auth/login", { email, password });
+          await api.setToken(r.access_token);
+          setUser(r.user);
+        }
+      } catch { /* fall through to login screen */ }
     }
     setLoading(false);
   }, []);
