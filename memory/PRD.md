@@ -114,3 +114,13 @@ AI trading journal that acts like a personal trading coach (not just an analytic
 - GEX ACCURACY SCORECARD: ingest_gex now logs one gex_daily doc per (symbol,date). GET /api/gex/scorecard (Premium, declared BEFORE /gex/{symbol}) pairs consecutive daily records: band_accuracy (next-day spot within put/call walls), avg abs move by +/- gamma regime, recent 5 days. Frontend: Scorecard component in app/gex.tsx. 0DTE/multi-expiry toggle DEFERRED (Pi sends aggregate net_gex only for now).
 - Refactor: extracted _compute_stats(uid,balance) (used by dashboard + bot stats) and _compute_leaderboard(window,limit) (endpoint + bot).
 - Backend tests: iteration_12.json 15/15 (Phase5+7). New env in backend/.env: DISCORD_WINS_CHANNEL_ID, DISCORD_BOT_KEY (=QTG2TRP2Of_-J5q6JDmwQ6_zel8cTX__8aXL_pr1y-4).
+
+## Security Hardening (2026-06 fork, pre-Play-Store):
+Applied after a security audit; verified 24/24 backend tests (iter13_security).
+- SEC-001 /api/auth/tier is DOWNGRADE-ONLY (tier=='free'); paid tiers granted ONLY via Stripe (/payments/status + webhook). Frontend only ever calls setTier("free").
+- SEC-002 REMOVED preview auto-login + bundled admin creds. Deleted EXPO_PUBLIC_PREVIEW_* from frontend/.env and reverted AuthContext.bootstrap to no auto-login (login screen shows again; token persists in storage after first login).
+- SEC-003 JWT_SECRET fail-closed at import (server.py:26-28, raises if missing/<16 chars); removed 'dev_secret' fallback. Added .env to .gitignore (root) for backend+frontend.
+- SEC-004 New _safe_redirect_response(rt,params,msg): allowlists schemes (APP_SCHEME='frontend', exp/exps, http(s) only for PUBLIC_APP_URL/BACKEND_URL host or *.emergentagent.com / *.emergent.host); escapes HTML attr via html.escape and JS string via json.dumps + <,>,& -> \u-escape. Applied to /payments/redirect and _discord_app_redirect. javascript:/data:/evil hosts -> plain page, no redirect.
+- Hardening: hmac.compare_digest for GEX_INGEST_KEY + DISCORD_BOT_KEY; CORS allow_credentials=False (bearer-token auth). Seed/admin accounts moved OUT of source into backend/.env SEED_ACCOUNTS ("email:pw,email:pw"); parsed by _load_seed_accounts().
+- Residual (needs user action, not code): set STRIPE_WEBHOOK_SECRET in prod (webhook fails closed w/ 400 until then — safe); rotate live keys if the repo was ever exposed.
+- Security test file: /app/backend/tests/test_security_fixes.py
