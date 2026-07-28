@@ -13,6 +13,7 @@ import { useAccent } from "@/src/context/AccentContext";
 import { useAuth } from "@/src/context/AuthContext";
 import { StatCard, EquityCurve, GradientCard, ScreenBackground } from "@/src/components/ui";
 import ReconcileModal from "@/src/components/ReconcileModal";
+import { useModalSlot } from "@/src/context/ModalQueue";
 import { PressableScale, CountUpText, PulseHalo } from "@/src/components/anim";
 import { playSound } from "@/src/utils/sound";
 import { storage } from "@/src/utils/storage";
@@ -70,6 +71,7 @@ export default function Dashboard() {
   const [gex, setGex] = useState<any>(null);
   const [brokerAccts, setBrokerAccts] = useState<any[]>([]);
   const [reconcileOpen, setReconcileOpen] = useState(false);
+  const { isActive: reconcileActive, dismiss: reconcileRelease } = useModalSlot("reconcile", 3, reconcileOpen);
   const [gatedHits, setGatedHits] = useState(0);
   const [dismissedSig, setDismissedSig] = useState<string | null>(null);
 
@@ -508,7 +510,7 @@ export default function Dashboard() {
         </LinearGradient>
       </PressableScale>
 
-      <ReconcileModal visible={reconcileOpen} accounts={brokerAccts} onClose={() => setReconcileOpen(false)} onDone={() => { setReconcileOpen(false); load(); }} />
+      <ReconcileModal visible={reconcileActive} accounts={brokerAccts} onClose={() => { setReconcileOpen(false); reconcileRelease(); }} onDone={() => { setReconcileOpen(false); reconcileRelease(); load(); }} />
     </View>
   );
 }

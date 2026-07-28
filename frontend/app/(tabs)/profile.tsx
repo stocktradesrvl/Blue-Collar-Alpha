@@ -39,7 +39,20 @@ export default function Profile() {
   const [discordEnabled, setDiscordEnabled] = useState(false);
   const [lossInput, setLossInput] = useState(String(user?.daily_loss_limit || ""));
   const [digestOn, setDigestOn] = useState(user?.weekly_digest_enabled !== false);
+  const [shareWins, setShareWins] = useState(!!user?.discord_share_wins);
+  const [leaderboard, setLeaderboard] = useState(!!user?.leaderboard_optin);
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+
+  const toggleShareWins = async (v: boolean) => {
+    setShareWins(v);
+    try { await api.post("/user/settings", { discord_share_wins: v }); await refresh(); }
+    catch (e: any) { setShareWins(!v); toast(e.message || "Could not update", "error"); }
+  };
+  const toggleLeaderboard = async (v: boolean) => {
+    setLeaderboard(v);
+    try { await api.post("/user/settings", { leaderboard_optin: v }); await refresh(); }
+    catch (e: any) { setLeaderboard(!v); toast(e.message || "Could not update", "error"); }
+  };
 
   const toggleDigest = async (v: boolean) => {
     setDigestOn(v);
@@ -227,6 +240,25 @@ export default function Profile() {
               {user?.discord_id ? (
                 <>
                   <Text style={styles.prefHint}>Linked as {user.discord_username || "your Discord account"}. Paid members are automatically granted the subscriber role.</Text>
+                  <View style={styles.prefDivider} />
+                  <View style={styles.prefRow}>
+                    <View style={styles.prefLeft}>
+                      <Ionicons name="trophy-outline" size={20} color={A.accent} />
+                      <Text style={styles.prefLabel}>Share my wins</Text>
+                    </View>
+                    <Switch testID="share-wins-toggle" value={shareWins} onValueChange={toggleShareWins}
+                      trackColor={{ false: colors.surface3, true: A.accent }} thumbColor={colors.onSurface} />
+                  </View>
+                  <Text style={styles.prefHint}>Auto-post your winning trades to the community #wins channel (symbol, P&amp;L, setup).</Text>
+                  <View style={styles.prefRow}>
+                    <View style={styles.prefLeft}>
+                      <Ionicons name="podium-outline" size={20} color={A.accent} />
+                      <Text style={styles.prefLabel}>Join leaderboard</Text>
+                    </View>
+                    <Switch testID="leaderboard-toggle" value={leaderboard} onValueChange={toggleLeaderboard}
+                      trackColor={{ false: colors.surface3, true: A.accent }} thumbColor={colors.onSurface} />
+                  </View>
+                  <Text style={styles.prefHint}>Appear on the anonymized community leaderboard (shown as {`"Trader-XXXX"`} — never your name).</Text>
                   <Pressable testID="discord-unlink" style={styles.discordUnlink} onPress={unlinkDiscord} disabled={busy === "discord"}>
                     {busy === "discord" ? <ActivityIndicator color={colors.onSurface} /> : <Text style={styles.discordUnlinkTxt}>Unlink Discord</Text>}
                   </Pressable>

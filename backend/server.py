@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, json, uuid, re, httpx
+import os, logging, json, uuid, re, httpx, hashlib, asyncio, base64, tempfile
 from pathlib import Path
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
@@ -12,6 +12,7 @@ from collections import defaultdict
 import bcrypt
 from jose import jwt, JWTError
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -35,6 +36,8 @@ DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
 DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', '')
 DISCORD_GUILD_ID = os.environ.get('DISCORD_GUILD_ID', '')
 DISCORD_ROLE_ID = os.environ.get('DISCORD_ROLE_ID', '')
+DISCORD_WINS_CHANNEL_ID = os.environ.get('DISCORD_WINS_CHANNEL_ID', '')
+DISCORD_BOT_KEY = os.environ.get('DISCORD_BOT_KEY', '')
 DISCORD_API = "https://discord.com/api/v10"
 DISCORD_OAUTH_AUTHORIZE = "https://discord.com/api/oauth2/authorize"
 
@@ -121,6 +124,8 @@ def public_user(u: dict) -> dict:
             "referral_count": u.get("referral_count", 0), "reward_pro_until": u.get("reward_pro_until"),
             "daily_loss_limit": u.get("daily_loss_limit", 0),
             "weekly_digest_enabled": u.get("weekly_digest_enabled", True),
+            "discord_share_wins": u.get("discord_share_wins", False),
+            "leaderboard_optin": u.get("leaderboard_optin", False),
             "discord_id": u.get("discord_id"), "discord_username": u.get("discord_username")}
 
 def gen_referral_code() -> str:
@@ -325,6 +330,55 @@ async def discord_dm(discord_id: str, content: str) -> bool:
         logger.error(f"discord dm err {e}")
         return False
 
+async def discord_channel_message(channel_id: str, content: str = "", embed: dict = None) -> bool:
+    if not (DISCORD_BOT_TOKEN and channel_id):
+        return False
+    headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}", "Content-Type": "application/json"}
+    payload: dict = {}
+    if content:
+        payload["content"] = content
+    if embed:
+        payload["embeds"] = [embed]
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(f"{DISCORD_API}/channels/{channel_id}/messages", headers=headers, json=payload)
+            ok = r.status_code in (200, 201)
+            if not ok:
+                logger.error(f"discord channel msg err {r.status_code} {r.text}")
+            return ok
+    except Exception as e:
+        logger.error(f"discord channel msg err {e}")
+        return False
+
+def anon_alias(u: dict) -> str:
+    """Stable anonymized handle for leaderboard display (e.g. 'Trader-4F2A')."""
+    seed = str(u.get("discord_id") or u.get("id") or "")
+    h = hashlib.sha256(seed.encode()).hexdigest()[:4].upper()
+    return f"Trader-{h}"
+
+async def post_win_to_discord(user_id: str, trade: dict):
+    """Post an opted-in winning trade to the community #wins channel."""
+    try:
+        if not (DISCORD_WINS_CHANNEL_ID and trade.get("pnl", 0) > 0):
+            return
+        u = await db.users.find_one({"id": user_id})
+        if not (u and u.get("discord_id") and u.get("discord_share_wins")):
+            return
+        name = u.get("discord_username") or "A trader"
+        sym = trade.get("symbol", "N/A")
+        pnl = trade.get("pnl", 0)
+        setup = trade.get("detected_setup") or "a setup"
+        grade = trade.get("setup_grade", "")
+        embed = {
+            "title": f"🟢 {sym} · +${pnl:,.2f}",
+            "description": f"**{name}** just logged a win on **{setup}**" + (f" · Setup grade **{grade}**" if grade else ""),
+            "color": 3066993,
+            "footer": {"text": "Blue Collar Alpha · shared with consent"},
+        }
+        await discord_channel_message(DISCORD_WINS_CHANNEL_ID, embed=embed)
+    except Exception as e:
+        logger.error(f"post_win_to_discord err {e}")
+
 def _welcome_msg(tier: str) -> str:
     t = "Premium" if tier == "premium" else "Pro"
     return (f"🎉 **Welcome to Blue Collar Alpha {t}!**\n"
@@ -428,6 +482,55 @@ async def discord_unlink(user=Depends(get_current_user)):
         {"$unset": {"discord_id": "", "discord_username": "", "discord_welcomed": ""}})
     u = await db.users.find_one({"id": user["id"]})
     return public_user(u)
+
+# ---------- Discord bot integration (slash commands / leaderboard) ----------
+def _require_bot_key(x_bot_key: str):
+    if not DISCORD_BOT_KEY or x_bot_key != DISCORD_BOT_KEY:
+        raise HTTPException(status_code=401, detail="Invalid bot key")
+
+@api.get("/discord/bot/stats")
+async def discord_bot_stats(discord_id: str, x_bot_key: str = Header(default="")):
+    """Called by the Discord bot's /stats slash command to fetch a member's stats."""
+    _require_bot_key(x_bot_key)
+    u = await db.users.find_one({"discord_id": str(discord_id)})
+    if not u:
+        return {"linked": False}
+    s = await _compute_stats(u["id"], u.get("account_balance", 10000))
+    return {
+        "linked": True,
+        "tier": effective_tier(u),
+        "total_trades": s["total_trades"],
+        "win_rate": s["win_rate"],
+        "total_pnl": s["total_pnl"],
+        "profit_factor": s["profit_factor"],
+        "avg_winner": s["avg_winner"],
+        "avg_loser": s["avg_loser"],
+        "best_setup": s["best_setup"],
+    }
+
+@api.get("/discord/bot/leaderboard")
+async def discord_bot_leaderboard(window: int = 30, limit: int = 10, x_bot_key: str = Header(default="")):
+    """Anonymized, opt-in leaderboard ranked by realized P&L over the window (days)."""
+    _require_bot_key(x_bot_key)
+    users = await db.users.find({"leaderboard_optin": True}).to_list(5000)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=max(1, window))).isoformat()
+    rows = []
+    for u in users:
+        trades = await db.trades.find({"user_id": u["id"], "created_at": {"$gte": cutoff}}).to_list(1000)
+        ex = [t for t in trades if t.get("taken", True) is not False]
+        n = len(ex)
+        if n < 3:
+            continue
+        wins = [t for t in ex if t.get("pnl", 0) > 0]
+        pnl = round(sum(t.get("pnl", 0) for t in ex), 2)
+        rows.append({
+            "alias": anon_alias(u),
+            "trades": n,
+            "win_rate": round(len(wins) / n * 100, 1),
+            "pnl": pnl,
+        })
+    rows.sort(key=lambda r: r["pnl"], reverse=True)
+    return {"window": window, "entries": rows[:max(1, min(limit, 50))]}
 
 # ---------- Strategy routes ----------
 @api.get("/strategies")
@@ -561,6 +664,8 @@ async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.trades.insert_one(doc)
+    if doc.get("taken", True) and doc.get("pnl", 0) > 0:
+        asyncio.create_task(post_win_to_discord(user["id"], doc))
     return clean_trade(doc)
 
 @api.put("/trades/{tid}/taken")
@@ -755,15 +860,14 @@ async def delete_trade(tid: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 # ---------- Dashboard stats ----------
-@api.get("/dashboard/stats")
-async def dashboard(user=Depends(get_current_user)):
-    all_trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", 1).to_list(1000)
+async def _compute_stats(uid: str, balance: float) -> dict:
+    all_trades = await db.trades.find({"user_id": uid}).sort("created_at", 1).to_list(1000)
     # Only executed trades count toward performance stats.
     trades = [t for t in all_trades if t.get("taken", True) is not False]
     total = len(trades)
     if total == 0:
         return {"total_trades": 0, "total_pnl": 0, "daily_pnl": 0, "win_rate": 0,
-                "profit_factor": 0, "avg_winner": 0, "avg_loser": 0, "account_balance": user.get("account_balance", 10000),
+                "profit_factor": 0, "avg_winner": 0, "avg_loser": 0, "account_balance": balance,
                 "equity_curve": [], "best_setup": None, "worst_setup": None, "best_hour": None, "worst_hour": None}
     wins = [t for t in trades if t.get("pnl", 0) > 0]
     losses = [t for t in trades if t.get("pnl", 0) < 0]
@@ -773,7 +877,7 @@ async def dashboard(user=Depends(get_current_user)):
     today = datetime.now(timezone.utc).date().isoformat()
     daily_pnl = sum(t.get("pnl", 0) for t in trades if t.get("created_at", "").startswith(today))
     # equity curve
-    bal = user.get("account_balance", 10000)
+    bal = balance
     eq = []
     run = bal
     for t in trades:
@@ -807,6 +911,10 @@ async def dashboard(user=Depends(get_current_user)):
         "best_setup": best_setup, "worst_setup": worst_setup,
         "best_hour": best_hour, "worst_hour": worst_hour,
     }
+
+@api.get("/dashboard/stats")
+async def dashboard(user=Depends(get_current_user)):
+    return await _compute_stats(user["id"], user.get("account_balance", 10000))
 
 # ---------- Weekly recap ----------
 @api.get("/dashboard/weekly")
@@ -1006,6 +1114,56 @@ async def daily_report(user=Depends(get_current_user)):
     return {"report": resp, "has_data": True, "label": "Today" if todays else "Recent trades"}
 
 # ---------- AI Coach chat ----------
+class VoiceIn(BaseModel):
+    audio_base64: str
+    ext: Optional[str] = "m4a"
+    summarize: Optional[bool] = False
+
+@api.post("/coach/transcribe")
+async def coach_transcribe(inp: VoiceIn, user=Depends(get_current_user)):
+    """Transcribe a short voice note (Whisper) so the trader can journal by voice.
+    Optionally returns a brief AI coaching summary of the note."""
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        raise HTTPException(status_code=402, detail="Voice journaling is a Premium feature. Upgrade to unlock.")
+    ext = (inp.ext or "m4a").lower().lstrip(".")
+    if ext not in ("m4a", "mp3", "mp4", "wav", "webm", "mpeg", "mpga"):
+        ext = "m4a"
+    try:
+        raw = base64.b64decode(inp.audio_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid audio data")
+    if len(raw) > 24 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Voice note too large (max ~24MB).")
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
+            tmp.write(raw)
+            tmp_path = tmp.name
+        stt = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
+        with open(tmp_path, "rb") as fh:
+            resp = await stt.transcribe(file=fh, model="whisper-1", response_format="text")
+        text = resp if isinstance(resp, str) else getattr(resp, "text", str(resp))
+        text = (text or "").strip()
+    except Exception as e:
+        logger.error(f"transcribe err {e}")
+        raise HTTPException(status_code=502, detail="Could not transcribe voice note. Try again.")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try: os.remove(tmp_path)
+            except Exception: pass
+    if not text:
+        raise HTTPException(status_code=422, detail="No speech detected in the voice note.")
+    summary = None
+    if inp.summarize:
+        try:
+            chat = llm("You are a trading coach. The trader just spoke a quick journal note about their trading. "
+                       "Reply with ONE short, encouraging, actionable coaching sentence (under 30 words). Plain text.",
+                       f"voicesum-{user['id']}-{uuid.uuid4()}", max_tokens=120)
+            summary = (await chat.send_message(UserMessage(text=text))).strip()
+        except Exception as e:
+            logger.error(f"voice summary err {e}")
+    return {"text": text, "summary": summary}
+
 @api.post("/coach/chat")
 async def coach_chat(inp: ChatIn, user=Depends(get_current_user)):
     if TIER_LEVEL.get(effective_tier(user), 0) < 2:
@@ -1256,6 +1414,8 @@ class EmotionIn(BaseModel):
 class SettingsIn(BaseModel):
     daily_loss_limit: Optional[float] = None
     weekly_digest_enabled: Optional[bool] = None
+    discord_share_wins: Optional[bool] = None
+    leaderboard_optin: Optional[bool] = None
 
 class ImportCsvIn(BaseModel):
     csv: str
@@ -1276,6 +1436,10 @@ async def set_settings(inp: SettingsIn, user=Depends(get_current_user)):
         updates["daily_loss_limit"] = max(0, float(inp.daily_loss_limit or 0))
     if inp.weekly_digest_enabled is not None:
         updates["weekly_digest_enabled"] = bool(inp.weekly_digest_enabled)
+    if inp.discord_share_wins is not None:
+        updates["discord_share_wins"] = bool(inp.discord_share_wins)
+    if inp.leaderboard_optin is not None:
+        updates["leaderboard_optin"] = bool(inp.leaderboard_optin)
     if updates:
         await db.users.update_one({"id": user["id"]}, {"$set": updates})
     u = await db.users.find_one({"id": user["id"]})

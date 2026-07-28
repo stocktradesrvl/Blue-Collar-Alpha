@@ -13,6 +13,7 @@ import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
 import { ToastProvider } from "@/src/context/ToastContext";
 import { AccentProvider } from "@/src/context/AccentContext";
+import { ModalQueueProvider } from "@/src/context/ModalQueue";
 import { colors } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
@@ -90,8 +91,10 @@ export default function RootLayout() {
         <AuthProvider>
           <ToastProvider>
             <AccentProvider>
-              <StatusBar style="light" />
-              <RootNavigator />
+              <ModalQueueProvider>
+                <StatusBar style="light" />
+                <RootNavigator />
+              </ModalQueueProvider>
             </AccentProvider>
           </ToastProvider>
         </AuthProvider>

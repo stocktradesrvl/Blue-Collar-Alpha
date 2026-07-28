@@ -6,12 +6,11 @@ import { storage } from "@/src/utils/storage";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
 import { useAuth } from "@/src/context/AuthContext";
+import { useModalSlot } from "@/src/context/ModalQueue";
 import { TRADER_QUOTES, Quote } from "@/src/traderQuotes";
-import { WHATS_NEW_VERSION } from "@/src/whatsNew";
 
 const DATE_KEY = "tm_daily_quote_date";
 const POOL_KEY = "tm_daily_quote_pool";
-const WHATS_NEW_SEEN_KEY = "tm_whats_new_version";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -25,23 +24,20 @@ function shuffle(arr: number[]) {
   return a;
 }
 
-// Shows a motivational trader quote once per day on first open,
-// cycling through the pool so quotes don't repeat until all are seen.
+// Shows a motivational trader quote once per day on first open, cycling through
+// the pool so quotes don't repeat until all are seen. Sequenced by the modal
+// queue so it never overlaps the "What's New" sheet.
 export default function DailyQuoteModal() {
-  const [visible, setVisible] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const A = useAccent().theme;
   const { user } = useAuth();
+  const { isActive, dismiss: releaseSlot } = useModalSlot("dailyQuote", 2, !!quote);
 
   useEffect(() => {
     (async () => {
       if (user?.subscription_tier === "premium") return; // Premium sees Market Sentiment instead
       const lastDate = await storage.getItem<string>(DATE_KEY, "");
       if (lastDate === todayStr()) return; // already shown today
-
-      // Defer to the "What's New" sheet if it will show this session.
-      const seenVersion = await storage.getItem<string>(WHATS_NEW_SEEN_KEY, "");
-      if (seenVersion !== WHATS_NEW_VERSION) return;
 
       let pool = String(await storage.getItem<string>(POOL_KEY, "") || "")
         .split(",").map((n) => parseInt(n, 10)).filter((n) => !isNaN(n) && n < TRADER_QUOTES.length);
@@ -51,14 +47,15 @@ export default function DailyQuoteModal() {
       setQuote(TRADER_QUOTES[idx]);
       await storage.setItem(POOL_KEY, pool.join(","));
       await storage.setItem(DATE_KEY, todayStr());
-      setVisible(true);
     })();
   }, [user?.subscription_tier]);
 
   if (!quote) return null;
 
+  const dismiss = () => { setQuote(null); releaseSlot(); };
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
+    <Modal visible={isActive} transparent animationType="fade" onRequestClose={dismiss}>
       <View style={styles.overlay}>
         <LinearGradient colors={gradients.card} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
           <View style={[styles.badge, { backgroundColor: A.accent, shadowColor: A.accent }]}>
@@ -69,7 +66,7 @@ export default function DailyQuoteModal() {
           <Text style={styles.quote}>{`"${quote.text}"`}</Text>
           <Text style={styles.author}>— {quote.author}</Text>
 
-          <Pressable testID="daily-quote-dismiss" style={styles.btn} onPress={() => setVisible(false)}>
+          <Pressable testID="daily-quote-dismiss" style={styles.btn} onPress={dismiss}>
             <Text style={styles.btnTxt}>{"Let's Trade"}</Text>
           </Pressable>
         </LinearGradient>

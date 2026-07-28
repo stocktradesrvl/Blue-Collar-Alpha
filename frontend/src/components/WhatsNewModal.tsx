@@ -5,29 +5,34 @@ import { Ionicons } from "@expo/vector-icons";
 import { storage } from "@/src/utils/storage";
 import { colors, spacing, radius, font, fs } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
+import { useModalSlot } from "@/src/context/ModalQueue";
 import { WHATS_NEW, WHATS_NEW_VERSION } from "@/src/whatsNew";
 
 const SEEN_KEY = "tm_whats_new_version";
 
 export default function WhatsNewModal() {
   const insets = useSafeAreaInsets();
-  const [visible, setVisible] = useState(false);
+  const [wants, setWants] = useState(false);
   const A = useAccent().theme;
+  const { isActive, dismiss: releaseSlot } = useModalSlot("whatsNew", 1, wants);
 
   useEffect(() => {
     (async () => {
       const seen = await storage.getItem<string>(SEEN_KEY, "");
-      if (seen !== WHATS_NEW_VERSION) setVisible(true);
+      if (seen !== WHATS_NEW_VERSION) setWants(true);
     })();
   }, []);
 
   const dismiss = async () => {
     await storage.setItem(SEEN_KEY, WHATS_NEW_VERSION);
-    setVisible(false);
+    setWants(false);
+    releaseSlot();
   };
 
+  if (!wants) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={dismiss}>
+    <Modal visible={isActive} transparent animationType="fade" onRequestClose={dismiss}>
       <View style={styles.overlay}>
         <View style={[styles.card, { paddingBottom: insets.bottom + spacing.lg }]}>
           <View style={[styles.badge, { backgroundColor: A.accent }]}>

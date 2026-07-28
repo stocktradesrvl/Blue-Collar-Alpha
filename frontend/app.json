@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.emergent.strategytracker.odqwcf",
       "infoPlist": {
         "NSCameraUsageDescription": "Capture trade screenshots for AI analysis",
-        "NSPhotoLibraryUsageDescription": "Upload trade screenshots for AI analysis"
+        "NSPhotoLibraryUsageDescription": "Upload trade screenshots for AI analysis",
+        "NSMicrophoneUsageDescription": "Record voice notes to journal your trades"
       }
     },
     "android": {
@@ -25,7 +26,8 @@
       "package": "com.emergent.strategytracker.odqwcf",
       "permissions": [
         "CAMERA",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "RECORD_AUDIO"
       ]
     },
     "web": {
@@ -44,7 +46,12 @@
           "backgroundColor": "#F1F5F8"
         }
       ],
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Record voice notes to journal your trades"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

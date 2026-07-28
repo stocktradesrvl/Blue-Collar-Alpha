@@ -1,0 +1,38 @@
+{
+  "summary": "Backend-only test for iteration 12 (P0 modal-queue is frontend-only, skipped). Verified 15/15 new/regression endpoints: POST /api/user/settings (discord_share_wins + leaderboard_optin toggle true->false, reflected via /api/auth/me), GET /api/discord/bot/stats (401 on missing/wrong x-bot-key, {linked:false} for unknown discord_id), GET /api/discord/bot/leaderboard (401 on bad key, returns {window, entries[]} with anonymized 'Trader-XXXX' aliases + trades>=3), POST /api/coach/transcribe (402 for free tier, 400/502 on invalid base64, real end-to-end round-trip: synthesized speech via emergentintegrations OpenAITextToSpeech tts-1/wav using EMERGENT_LLM_KEY, base64-encoded, POSTed with summarize=true, got non-empty text+summary back), plus regression on /api/dashboard/stats, /api/config, /api/gex.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/coach/transcribe", "issue": "Invalid base64 payload is not always rejected with 400. Python's base64.b64decode is lenient (silently ignores stray chars), so garbage passes decode and only fails downstream at Whisper -> 502. Consider using validate=True on b64decode so obviously-bad input returns 400 as the endpoint contract implies."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase5_7_features.py",
+    "/app/test_reports/pytest/iter12_phase5_7.xml"
+  ],
+  "action_items": [
+    "(Optional) Harden POST /api/coach/transcribe: use base64.b64decode(inp.audio_base64, validate=True) so malformed base64 consistently returns 400 (currently sometimes falls through to a 502 from Whisper).",
+    "DISCORD_WINS_CHANNEL_ID is empty in backend/.env — auto-post-to-#wins is a no-op in this env, as expected. Populate before shipping if the feature should be live."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 2064 lines — consider splitting into modules (auth/, discord/, trades/, coach/, payments/) for maintainability.",
+    "coach_transcribe correctly opens the temp file as a file object (fh) when calling OpenAISpeechToText.transcribe — matches the note in the review request.",
+    "anon_alias uses sha256(discord_id||user_id) truncated to 4 hex chars → OK for anonymization; collisions possible in a small pool but acceptable for a leaderboard.",
+    "Bot-key auth for /api/discord/bot/* is header-based and constant-time-ish via ==; fine for a shared secret behind HTTPS."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase5_7_features.py (new)"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "N/A - skipped per request"},
+  "seed_data_creation": "Created one TEST_free_<uuid>@example.com free-tier user for the 402 gating test (left in DB; harmless).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 12 new endpoints all green. Real Whisper transcription round-trip verified via emergentintegrations TTS->STT. If retesting: bot key = QTG2TRP2Of_-J5q6JDmwQ6_zel8cTX__8aXL_pr1y-4, admin = stocktradesrvl@gmail.com / TradeAdmin123, EMERGENT_LLM_KEY loaded from /app/backend/.env, run `pytest /app/backend/tests/test_phase5_7_features.py -v`.",
+  "rca_of_issue": "N/A - no failing test cases."
+}

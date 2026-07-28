@@ -6,6 +6,7 @@ import { storage } from "@/src/utils/storage";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { useAccent } from "@/src/context/AccentContext";
+import { useModalSlot } from "@/src/context/ModalQueue";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 
 const DATE_KEY = "tm_sentiment_date";
@@ -43,31 +44,35 @@ export function SentimentCard({ card }: { card: any }) {
 export default function MarketSentimentModal() {
   const { user } = useAuth();
   const A = useAccent().theme;
-  const [visible, setVisible] = useState(false);
+  const [wants, setWants] = useState(false);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const { isActive, dismiss: releaseSlot } = useModalSlot("sentiment", 2, wants);
 
   useEffect(() => {
     (async () => {
       if (user?.subscription_tier !== "premium") return;
       const lastDate = await storage.getItem<string>(DATE_KEY, "");
       if (lastDate === todayStr()) return;
-      setVisible(true);
+      setWants(true);
       setLoading(true);
       try {
         const d = await api.get("/sentiment");
         setData(d);
         await storage.setItem(DATE_KEY, todayStr());
       } catch {
-        setVisible(false);
+        setWants(false);
+        releaseSlot();
       } finally { setLoading(false); }
     })();
   }, [user?.subscription_tier]);
 
-  if (!visible) return null;
+  if (!wants) return null;
+
+  const dismiss = () => { setWants(false); releaseSlot(); };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
+    <Modal visible={isActive} transparent animationType="fade" onRequestClose={dismiss}>
       <View style={styles.overlay}>
         <LinearGradient colors={gradients.card} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.sheet}>
           <View style={[styles.badge, { backgroundColor: A.accent, shadowColor: A.accent }]}>
@@ -85,7 +90,7 @@ export default function MarketSentimentModal() {
             </View>
           )}
 
-          <Pressable testID="sentiment-dismiss" style={[styles.btn, { backgroundColor: A.accent }]} onPress={() => setVisible(false)}>
+          <Pressable testID="sentiment-dismiss" style={[styles.btn, { backgroundColor: A.accent }]} onPress={dismiss}>
             <Text style={[styles.btnTxt, { color: A.onAccent }]}>{"Let's Trade"}</Text>
           </Pressable>
         </LinearGradient>

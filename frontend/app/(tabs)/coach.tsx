@@ -6,6 +6,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
+import { useToast } from "@/src/context/ToastContext";
+import { useVoiceNote } from "@/src/hooks/useVoiceNote";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
@@ -33,6 +35,18 @@ export default function Coach() {
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const locked = user?.subscription_tier !== "premium";
+  const toast = useToast();
+  const voice = useVoiceNote(toast, false);
+
+  const onMicPress = async () => {
+    if (busy) return;
+    if (voice.recording) {
+      const r = await voice.stop();
+      if (r?.text) setInput((prev) => (prev ? `${prev} ${r.text}` : r.text));
+    } else {
+      await voice.start();
+    }
+  };
 
   const load = useCallback(async () => {
     if (locked) return;
@@ -124,8 +138,17 @@ export default function Coach() {
         )}
       </ScrollView>
       <View style={[styles.inputBar, { paddingBottom: insets.bottom || spacing.md }]}>
-        <TextInput testID="coach-input" style={styles.input} placeholder="Ask your coach..." placeholderTextColor={colors.onSurface3}
-          value={input} onChangeText={setInput} multiline />
+        <Pressable testID="coach-mic" onPress={onMicPress} disabled={busy || voice.transcribing}
+          style={[styles.micBtn, voice.recording && { backgroundColor: colors.error + "22", borderColor: colors.error }]}>
+          {voice.transcribing ? (
+            <ActivityIndicator color={A.accent} />
+          ) : (
+            <Ionicons name={voice.recording ? "stop" : "mic"} size={22} color={voice.recording ? colors.error : A.accent} />
+          )}
+        </Pressable>
+        <TextInput testID="coach-input" style={styles.input}
+          placeholder={voice.recording ? "Listening… tap stop when done" : "Ask your coach…"} placeholderTextColor={colors.onSurface3}
+          value={input} onChangeText={setInput} multiline editable={!voice.recording} />
         <Pressable testID="coach-send" onPress={() => send(input)} disabled={busy}>
           <LinearGradient colors={A.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.sendBtn, { shadowColor: A.accent }]}>
             <Ionicons name="arrow-up" size={22} color={A.onAccent} />
@@ -158,6 +181,7 @@ const styles = StyleSheet.create({
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.surface2 },
   input: { flex: 1, maxHeight: 120, backgroundColor: colors.surface3, borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg },
   sendBtn: { width: 44, height: 44, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", ...glow(colors.accent, 0.5) },
+  micBtn: { width: 44, height: 44, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3, borderWidth: 1, borderColor: colors.border },
   lock: { flex: 1, alignItems: "center", paddingHorizontal: spacing.xl, gap: spacing.md },
   lockIcon: { width: 80, height: 80, borderRadius: radius.lg, backgroundColor: colors.accentTint, alignItems: "center", justifyContent: "center", marginBottom: spacing.md, ...glow(colors.accent, 0.4) },
   lockTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["2xl"] },
