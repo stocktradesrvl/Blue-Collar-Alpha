@@ -5,6 +5,7 @@ import { colors, font } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
 import WhatsNewModal from "@/src/components/WhatsNewModal";
 import DailyQuoteModal from "@/src/components/DailyQuoteModal";
+import MarketSentimentModal from "@/src/components/MarketSentimentModal";
 
 export default function TabsLayout() {
   const { theme: A } = useAccent();
@@ -33,6 +34,7 @@ export default function TabsLayout() {
     </Tabs>
     <WhatsNewModal />
     <DailyQuoteModal />
+    <MarketSentimentModal />
     </>
   );
 }

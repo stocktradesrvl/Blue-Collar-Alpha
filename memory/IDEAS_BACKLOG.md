@@ -42,7 +42,7 @@
 - [>] Free-trial of Premium (X days) with auto-downgrade
 - [>] "Upgrade nudge" when free user hits a gated feature repeatedly
 
-## Multi-Broker Balance Reconciliation — NEW (queued, spec locked)
+## Multi-Broker Balance Reconciliation — SHIPPED ✅
 Goal: track cash/account balances across multiple brokers, reconcile on login.
 - [>] Add per-broker balance lines: Robinhood, Webull, Tastytrade, + "Other" (custom name)
 - [>] Show combined TOTAL across all broker accounts
@@ -52,7 +52,7 @@ Goal: track cash/account balances across multiple brokers, reconcile on login.
 - [>] Balance history timeline per broker + aggregate equity curve
 - DECISIONS: Manual entry for MVP (no broker API). Win/Loss adjustments live in a separate cash-adjustments ledger, kept out of trade win-rate/P&L metrics. Base currency USD.
 
-## Market Sentiment on Login (replace quotes) — NEW (queued, spec locked)
+## Market Sentiment on Login (replace quotes) — SHIPPED ✅ (Premium)
 Goal: replace the login/dashboard quotes with a market-sentiment overview. PREMIUM-gated.
 - [>] Sentiment across 4 asset classes: Stocks, Options, Futures, Crypto
 - [>] Each shows a sentiment read (Bullish/Neutral/Bearish + score/gauge)

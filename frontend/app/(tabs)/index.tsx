@@ -12,6 +12,7 @@ import { colors, spacing, radius, font, fs, money, pnlColor, glow, cardShadow } 
 import { useAccent } from "@/src/context/AccentContext";
 import { useAuth } from "@/src/context/AuthContext";
 import { StatCard, EquityCurve, GradientCard, ScreenBackground } from "@/src/components/ui";
+import ReconcileModal from "@/src/components/ReconcileModal";
 import { PressableScale, CountUpText, PulseHalo } from "@/src/components/anim";
 import { playSound } from "@/src/utils/sound";
 import { storage } from "@/src/utils/storage";
@@ -67,6 +68,8 @@ export default function Dashboard() {
   const [mWindow, setMWindow] = useState<"30" | "all">("30");
   const [alert30, setAlert30] = useState<any>(null);
   const [gex, setGex] = useState<any>(null);
+  const [brokerAccts, setBrokerAccts] = useState<any[]>([]);
+  const [reconcileOpen, setReconcileOpen] = useState(false);
   const [dismissedSig, setDismissedSig] = useState<string | null>(null);
 
   const loadMistakes = useCallback(async (w: "30" | "all") => {
@@ -83,6 +86,11 @@ export default function Dashboard() {
     try { setLastTrade(await api.get("/dashboard/last-trade")); } catch {}
     try { setAlert30(await api.get("/dashboard/mistake-trends?window=30")); } catch {}
     try { const g = await api.get("/gex"); setGex(g?.snapshots?.length ? g.snapshots : null); } catch { setGex(null); }
+    try {
+      const b = await api.get("/brokers");
+      setBrokerAccts(b.accounts || []);
+      if (b.needs_reconcile && (b.accounts || []).length) setReconcileOpen(true);
+    } catch {}
     loadMistakes(mWindow);
     try {
       const b = await api.get("/payments/billing");
@@ -315,6 +323,16 @@ export default function Dashboard() {
                 <Text style={styles.chartBtnTxt}>GEX Tracker & Heatmap</Text>
                 <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
               </Pressable>
+              <Pressable testID="balances-btn" style={styles.chartBtn} onPress={() => router.push("/balances")}>
+                <Ionicons name="wallet-outline" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>Broker Balances</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+              <Pressable testID="gameplan-btn" style={styles.chartBtn} onPress={() => router.push("/gameplan")}>
+                <Ionicons name="sparkles" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>AI Game Plan & Insights</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
             </Animated.View>
 
             {gex && (
@@ -469,6 +487,8 @@ export default function Dashboard() {
           <Text style={[styles.fabTxt, { color: A.onAccent }]}>Add Trade</Text>
         </LinearGradient>
       </PressableScale>
+
+      <ReconcileModal visible={reconcileOpen} accounts={brokerAccts} onClose={() => setReconcileOpen(false)} onDone={() => { setReconcileOpen(false); load(); }} />
     </View>
   );
 }

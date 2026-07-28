@@ -1276,6 +1276,184 @@ async def set_settings(inp: SettingsIn, user=Depends(get_current_user)):
     u = await db.users.find_one({"id": user["id"]})
     return public_user(u)
 
+# ---------- Multi-broker balances + cash-adjustments ledger ----------
+def _strip(d: dict) -> dict:
+    d.pop("_id", None)
+    return d
+
+def _today_str() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+class BrokerIn(BaseModel):
+    name: str
+    balance: float = 0
+
+class BrokerUpdate(BaseModel):
+    name: Optional[str] = None
+    balance: Optional[float] = None
+
+class ReconcileItem(BaseModel):
+    id: str
+    new_balance: float
+    classification: Optional[str] = None  # win | loss | other
+    note: Optional[str] = None
+
+class ReconcileIn(BaseModel):
+    items: List[ReconcileItem]
+
+@api.get("/brokers")
+async def list_brokers(user=Depends(get_current_user)):
+    accts = await db.broker_accounts.find({"user_id": user["id"]}).sort("created_at", 1).to_list(100)
+    accts = [_strip(a) for a in accts]
+    total = round(sum(a.get("balance", 0) for a in accts), 2)
+    u = await db.users.find_one({"id": user["id"]})
+    needs = bool(accts) and (u.get("balances_confirmed_on") != _today_str())
+    return {"accounts": accts, "total": total, "needs_reconcile": needs,
+            "confirmed_on": u.get("balances_confirmed_on")}
+
+@api.post("/brokers")
+async def add_broker(inp: BrokerIn, user=Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {"id": str(uuid.uuid4()), "user_id": user["id"], "name": (inp.name or "Broker").strip()[:40] or "Broker",
+           "balance": round(float(inp.balance or 0), 2), "created_at": now, "updated_at": now}
+    await db.broker_accounts.insert_one(doc)
+    return _strip(doc)
+
+@api.put("/brokers/{bid}")
+async def update_broker(bid: str, inp: BrokerUpdate, user=Depends(get_current_user)):
+    upd = {}
+    if inp.name is not None:
+        upd["name"] = inp.name.strip()[:40] or "Broker"
+    if inp.balance is not None:
+        upd["balance"] = round(float(inp.balance), 2)
+    if upd:
+        upd["updated_at"] = datetime.now(timezone.utc).isoformat()
+        r = await db.broker_accounts.update_one({"id": bid, "user_id": user["id"]}, {"$set": upd})
+        if r.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Broker not found")
+    a = await db.broker_accounts.find_one({"id": bid, "user_id": user["id"]})
+    if not a:
+        raise HTTPException(status_code=404, detail="Broker not found")
+    return _strip(a)
+
+@api.delete("/brokers/{bid}")
+async def delete_broker(bid: str, user=Depends(get_current_user)):
+    await db.broker_accounts.delete_one({"id": bid, "user_id": user["id"]})
+    return {"ok": True}
+
+@api.post("/brokers/reconcile")
+async def reconcile_brokers(inp: ReconcileIn, user=Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    logged = []
+    for it in inp.items:
+        a = await db.broker_accounts.find_one({"id": it.id, "user_id": user["id"]})
+        if not a:
+            continue
+        old = a.get("balance", 0)
+        delta = round(float(it.new_balance) - old, 2)
+        if abs(delta) >= 0.005:
+            cls = (it.classification or "other").lower()
+            if cls not in ("win", "loss", "other"):
+                cls = "other"
+            adj = {"id": str(uuid.uuid4()), "user_id": user["id"], "broker_account_id": a["id"],
+                   "broker_name": a["name"], "amount": delta, "type": cls,
+                   "note": (it.note or "")[:200], "created_at": now}
+            await db.cash_adjustments.insert_one(adj)
+            logged.append(_strip(dict(adj)))
+        await db.broker_accounts.update_one({"id": a["id"]},
+            {"$set": {"balance": round(float(it.new_balance), 2), "updated_at": now}})
+    await db.users.update_one({"id": user["id"]}, {"$set": {"balances_confirmed_on": _today_str()}})
+    return {"ok": True, "adjustments": logged}
+
+@api.get("/cash-adjustments")
+async def cash_adjustments(user=Depends(get_current_user)):
+    items = await db.cash_adjustments.find({"user_id": user["id"]}).sort("created_at", -1).to_list(500)
+    items = [_strip(i) for i in items]
+    summ = {"win": 0.0, "loss": 0.0, "other": 0.0}
+    for i in items:
+        t = i.get("type", "other")
+        summ[t] = round(summ.get(t, 0) + i.get("amount", 0), 2)
+    return {"adjustments": items, "summary": summ, "net": round(sum(i.get("amount", 0) for i in items), 2)}
+
+# ---------- AI Coaching: game plan, emotion insights, streak ----------
+@api.get("/coach/game-plan")
+async def coach_game_plan(user=Depends(get_current_user)):
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        raise HTTPException(status_code=402, detail="AI Game Plan is a Premium feature. Upgrade to unlock.")
+    trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", -1).to_list(300)
+    taken = [t for t in trades if t.get("taken", True) is not False]
+    recent = taken[:60]
+    tags = defaultdict(int)
+    for t in recent:
+        for tag in (t.get("mistake_tags") or []):
+            tags[tag] += 1
+        if t.get("strategy_followed") is False:
+            tags["rule violation"] += 1
+    top_mistakes = sorted(tags.items(), key=lambda x: -x[1])[:5]
+    n = len(recent)
+    pnl = round(sum(t.get("pnl", 0) for t in recent), 2)
+    wins = sum(1 for t in recent if t.get("pnl", 0) > 0)
+    perf = {"trades": n, "pnl": pnl, "win_rate": round(wins / n * 100, 1) if n else 0}
+    snaps = await db.gex_snapshots.find({}).to_list(10)
+    gex_ctx = [{"symbol": s["symbol"], "spot": s.get("spot"), "flip": s.get("flip_point"),
+                "call_wall": s.get("call_wall"), "put_wall": s.get("put_wall"),
+                "net_gex": s.get("net_gex")} for s in snaps]
+    system = ("You are an elite trading coach writing a SHORT, punchy pre-market game plan for the trader. "
+              "Use ONLY their data. Structure with 3 sections using these exact headers on their own lines: "
+              "'Focus', 'Watch-outs', 'Key Levels'. Under Focus: 1-2 things to lean into based on what's working. "
+              "Under Watch-outs: their top recurring mistakes to avoid today. Under Key Levels: reference the GEX "
+              "flip/walls per symbol in plain English (what to do around them). Keep the whole thing under 180 words, "
+              "direct and motivating.")
+    prompt = (f"RECENT PERFORMANCE (last {n} trades): {json.dumps(perf)}\n"
+              f"TOP RECURRING MISTAKES: {json.dumps(top_mistakes)}\n"
+              f"TODAY'S GEX LEVELS: {json.dumps(gex_ctx)}")
+    chat = llm(system, f"gameplan-{user['id']}", max_tokens=700)
+    try:
+        resp = await chat.send_message(UserMessage(text=prompt))
+    except Exception as e:
+        logger.error(f"gameplan err {e}")
+        raise HTTPException(status_code=502, detail="Could not generate game plan. Try again.")
+    return {"game_plan": resp.strip(), "generated_at": datetime.now(timezone.utc).isoformat(),
+            "gex_levels": gex_ctx, "has_data": n > 0}
+
+@api.get("/insights/emotion")
+async def emotion_insights(user=Depends(get_current_user)):
+    trades = await db.trades.find({"user_id": user["id"]}).to_list(2000)
+    taken = [t for t in trades if t.get("taken", True) is not False and t.get("emotion")]
+    g = defaultdict(lambda: {"n": 0, "pnl": 0.0, "wins": 0})
+    for t in taken:
+        e = t["emotion"]
+        g[e]["n"] += 1
+        g[e]["pnl"] += t.get("pnl", 0)
+        if t.get("pnl", 0) > 0:
+            g[e]["wins"] += 1
+    out = [{"emotion": e, "trades": v["n"], "pnl": round(v["pnl"], 2),
+            "win_rate": round(v["wins"] / v["n"] * 100, 1) if v["n"] else 0,
+            "avg_pnl": round(v["pnl"] / v["n"], 2) if v["n"] else 0} for e, v in g.items()]
+    out.sort(key=lambda x: x["pnl"], reverse=True)
+    return {"by_emotion": out, "has_data": len(out) > 0}
+
+@api.get("/insights/streak")
+async def rule_streak(user=Depends(get_current_user)):
+    trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", -1).to_list(1000)
+    taken = [t for t in trades if t.get("taken", True) is not False]
+    current = 0
+    for t in taken:
+        if t.get("strategy_followed") is not False:
+            current += 1
+        else:
+            break
+    best = 0
+    run = 0
+    for t in reversed(taken):
+        if t.get("strategy_followed") is not False:
+            run += 1
+            best = max(best, run)
+        else:
+            run = 0
+    return {"current_streak": current, "best_streak": best, "total": len(taken)}
+
+
 # ---------- Performance metrics + playbooks ----------
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
@@ -1594,6 +1772,81 @@ async def send_test_digest(user=Depends(get_current_user)):
             raise HTTPException(status_code=502, detail="Sending domain isn't verified in Resend yet. Verify it, then try again.")
         raise HTTPException(status_code=502, detail=f"Email failed: {msg[:180]}")
     return {"ok": True, "email": email}
+
+# ---------- Market Sentiment (Premium) ----------
+_sentiment_cache = {"ts": 0.0, "data": None}
+
+async def _yahoo_chg(client, symbol):
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1d&interval=1d"
+    r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+    meta = r.json()["chart"]["result"][0]["meta"]
+    price = meta.get("regularMarketPrice")
+    prev = meta.get("chartPreviousClose") or meta.get("previousClose")
+    chg = ((price - prev) / prev * 100) if price and prev else 0.0
+    return price, round(chg, 2)
+
+def _sent_label(score):
+    if score >= 15:
+        return "Bullish"
+    if score <= -15:
+        return "Bearish"
+    return "Neutral"
+
+async def _build_sentiment():
+    stocks = futures = crypto = options = None
+    async with httpx.AsyncClient(timeout=12) as c:
+        try:
+            _, spchg = await _yahoo_chg(c, "^GSPC")
+            vixp, _ = await _yahoo_chg(c, "^VIX")
+            score = max(-100, min(100, spchg * 14 - max(0, (vixp or 0) - 18) * 2))
+            stocks = {"cls": "Stocks", "label": _sent_label(score), "score": round(score),
+                      "detail": f"S&P 500 {spchg:+.2f}% · VIX {vixp:.1f}" if vixp else f"S&P 500 {spchg:+.2f}%"}
+        except Exception as e:
+            logger.error(f"sent stocks {e}")
+        try:
+            es = await _yahoo_chg(c, "ES=F"); nq = await _yahoo_chg(c, "NQ=F"); cl = await _yahoo_chg(c, "CL=F")
+            avg = (es[1] + nq[1]) / 2
+            futures = {"cls": "Futures", "label": _sent_label(max(-100, min(100, avg * 14))),
+                       "score": round(max(-100, min(100, avg * 14))),
+                       "detail": f"ES {es[1]:+.2f}% · NQ {nq[1]:+.2f}% · CL {cl[1]:+.2f}%"}
+        except Exception as e:
+            logger.error(f"sent futures {e}")
+        try:
+            r = await c.get("https://api.alternative.me/fng/?limit=1")
+            d = r.json()["data"][0]
+            val = int(d["value"]); cls = d.get("value_classification", "")
+            lbl = "Bullish" if val >= 60 else ("Bearish" if val <= 40 else "Neutral")
+            crypto = {"cls": "Crypto", "label": lbl, "score": val, "detail": f"Fear & Greed {val} · {cls}"}
+        except Exception as e:
+            logger.error(f"sent crypto {e}")
+    try:
+        snaps = await db.gex_snapshots.find({}).to_list(10)
+        if snaps:
+            net = sum(s.get("net_gex", 0) for s in snaps)
+            call_oi = sum((st.get("call_oi") or 0) for s in snaps for st in s.get("strikes", []))
+            put_oi = sum((st.get("put_oi") or 0) for s in snaps for st in s.get("strikes", []))
+            skew = ((call_oi - put_oi) / (call_oi + put_oi) * 50) if (call_oi + put_oi) else 0
+            score = max(-100, min(100, skew + (10 if net > 0 else -10)))
+            options = {"cls": "Options", "label": _sent_label(score), "score": round(score),
+                       "detail": ("Positive gamma · vol dampened" if net > 0 else "Negative gamma · vol elevated")}
+    except Exception as e:
+        logger.error(f"sent options {e}")
+    cards = [x for x in [stocks, options, futures, crypto] if x]
+    return {"cards": cards, "as_of": datetime.now(timezone.utc).isoformat()}
+
+@api.get("/sentiment")
+async def get_sentiment(user=Depends(get_current_user)):
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        raise HTTPException(status_code=402, detail="Market Sentiment is a Premium feature.")
+    import time as _t
+    now = _t.time()
+    if _sentiment_cache["data"] and (now - _sentiment_cache["ts"] < 300):
+        return _sentiment_cache["data"]
+    data = await _build_sentiment()
+    if data["cards"]:
+        _sentiment_cache["ts"] = now
+        _sentiment_cache["data"] = data
+    return data
 
 @api.get("/config")
 async def config():

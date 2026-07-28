@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { storage } from "@/src/utils/storage";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
+import { useAuth } from "@/src/context/AuthContext";
 import { TRADER_QUOTES, Quote } from "@/src/traderQuotes";
 import { WHATS_NEW_VERSION } from "@/src/whatsNew";
 
@@ -30,9 +31,11 @@ export default function DailyQuoteModal() {
   const [visible, setVisible] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const A = useAccent().theme;
+  const { user } = useAuth();
 
   useEffect(() => {
     (async () => {
+      if (user?.subscription_tier === "premium") return; // Premium sees Market Sentiment instead
       const lastDate = await storage.getItem<string>(DATE_KEY, "");
       if (lastDate === todayStr()) return; // already shown today
 
@@ -50,7 +53,7 @@ export default function DailyQuoteModal() {
       await storage.setItem(DATE_KEY, todayStr());
       setVisible(true);
     })();
-  }, []);
+  }, [user?.subscription_tier]);
 
   if (!quote) return null;
 

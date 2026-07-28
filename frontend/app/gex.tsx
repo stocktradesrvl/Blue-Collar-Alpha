@@ -139,6 +139,17 @@ export default function Gex() {
   const snapTs = d ? new Date(d.timestamp || d.received_at).getTime() : 0;
   const isStale = !!d && !isNaN(snapTs) && (Date.now() - snapTs) > STALE_MS;
 
+  const gexAlerts: { txt: string; c: string }[] = [];
+  if (d) {
+    const { spot, flip_point: flip, call_wall: call, put_wall: put } = d;
+    if (call != null && spot != null && spot > call)
+      gexAlerts.push({ txt: `Spot ${spot} is ABOVE the call wall (${call}) — upside may be capped; squeeze risk if it breaks.`, c: colors.success });
+    if (put != null && spot != null && spot < put)
+      gexAlerts.push({ txt: `Spot ${spot} is BELOW the put wall (${put}) — support broke; elevated downside volatility.`, c: colors.error });
+    if (flip != null && spot != null && Math.abs(spot - flip) / flip < 0.003)
+      gexAlerts.push({ txt: `Spot ${spot} is right at the gamma flip (${flip}) — regime can shift between calm and volatile here.`, c: colors.warning });
+  }
+
   const tagFor = (strike: number): string | undefined => {
     if (d?.call_wall != null && strike === d.call_wall) return "Call Wall";
     if (d?.put_wall != null && strike === d.put_wall) return "Put Wall";
@@ -234,6 +245,23 @@ export default function Gex() {
                 </View>
               </View>
 
+              <View style={[styles.regimeCard, { borderColor: (netPos ? colors.success : colors.error) + "66" }]}>
+                <View style={styles.regimeHead}>
+                  <Ionicons name={netPos ? "shield-checkmark" : "flash"} size={16} color={netPos ? colors.success : colors.error} />
+                  <Text style={[styles.regimeTitle, { color: netPos ? colors.success : colors.error }]}>{netPos ? "Positive Gamma Regime" : "Negative Gamma Regime"}</Text>
+                </View>
+                <Text style={styles.regimeTxt}>{netPos
+                  ? "Dealers buy dips and sell rips — expect range-bound, mean-reverting action and pinning toward big strikes."
+                  : "Dealers sell dips and buy rips — expect trending moves and higher volatility; breakouts can extend."}</Text>
+              </View>
+
+              {gexAlerts.map((al, i) => (
+                <View key={i} style={[styles.gexAlert, { backgroundColor: al.c + "18", borderColor: al.c + "55" }]}>
+                  <Ionicons name="notifications" size={16} color={al.c} />
+                  <Text style={styles.gexAlertTxt}>{al.txt}</Text>
+                </View>
+              ))}
+
               <ExpectedRange spot={d.spot} put={d.put_wall} call={d.call_wall} accent={A.accent} />
 
               {strikes.length ? (
@@ -284,6 +312,12 @@ const styles = StyleSheet.create({
   rangeEnd: { fontFamily: font.displayBold, fontSize: fs.lg },
   rangeSub: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
   rangeNote: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, lineHeight: 18, marginTop: spacing.sm },
+  regimeCard: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, padding: spacing.lg, gap: spacing.xs },
+  regimeHead: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  regimeTitle: { fontFamily: font.displayBold, fontSize: fs.base, letterSpacing: 0.3 },
+  regimeTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, lineHeight: 18 },
+  gexAlert: { flexDirection: "row", alignItems: "center", gap: spacing.sm, borderRadius: radius.md, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  gexAlertTxt: { flex: 1, color: colors.onSurface, fontFamily: font.text, fontSize: fs.sm, lineHeight: 18 },
   levelGrid: { flexDirection: "row", gap: spacing.sm },
   levelCard: { flex: 1, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, gap: 2 },
   levelLabel: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
