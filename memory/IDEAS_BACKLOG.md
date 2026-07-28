@@ -42,22 +42,23 @@
 - [>] Free-trial of Premium (X days) with auto-downgrade
 - [>] "Upgrade nudge" when free user hits a gated feature repeatedly
 
-## Multi-Broker Balance Reconciliation — NEW (queued)
+## Multi-Broker Balance Reconciliation — NEW (queued, spec locked)
 Goal: track cash/account balances across multiple brokers, reconcile on login.
 - [>] Add per-broker balance lines: Robinhood, Webull, Tastytrade, + "Other" (custom name)
 - [>] Show combined TOTAL across all broker accounts
 - [>] On login: prompt to CONFIRM each broker's current balance (handles overnight changes)
 - [>] If a balance changed, ask user to classify the delta as: Win / Loss / Other (deposit, withdrawal, fee, dividend, etc.)
-- [>] Log the classified delta into the journal/history so P&L stays accurate
+- [>] Log the classified delta into a SEPARATE "cash adjustments" ledger (does NOT distort trade stats)
 - [>] Balance history timeline per broker + aggregate equity curve
-- OPEN QUESTIONS: manual entry vs broker API (RH/Webull/Tastytrade lack official/stable public APIs → likely manual for MVP); should "Win/Loss" deltas count toward trade stats or a separate cash-adjustment ledger?; base currency (USD assumed).
+- DECISIONS: Manual entry for MVP (no broker API). Win/Loss adjustments live in a separate cash-adjustments ledger, kept out of trade win-rate/P&L metrics. Base currency USD.
 
-## Market Sentiment on Login (replace quotes) — NEW (queued)
-Goal: replace the login/dashboard quotes with a market-sentiment overview.
+## Market Sentiment on Login (replace quotes) — NEW (queued, spec locked)
+Goal: replace the login/dashboard quotes with a market-sentiment overview. PREMIUM-gated.
 - [>] Sentiment across 4 asset classes: Stocks, Options, Futures, Crypto
-- [>] Each shows a sentiment read (e.g., Bullish/Neutral/Bearish + score/gauge)
+- [>] Each shows a sentiment read (Bullish/Neutral/Bearish + score/gauge)
 - [>] Concise, glanceable cards; tappable for a short "why" (drivers)
-- OPEN QUESTIONS: data source per class — Stocks (indices trend/advancers vs decliners, VIX), Options (put/call ratio, our own GEX regime!), Futures (ES/NQ/CL trend), Crypto (Fear & Greed index / BTC dominance). Need to pick providers (many free: Alternative.me F&G for crypto, CBOE put/call, etc.) or derive from existing data. Refresh cadence + caching. Free vs Premium gating?
+- [>] Refreshes on each login/pull
+- DECISIONS: Options sentiment powered by OUR OWN GEX data (gamma regime + put/call skew). Stocks = index trend + VIX. Futures = ES/NQ/CL trend. Crypto = free Fear & Greed index (alternative.me). No specific featured tickers requested yet. PREMIUM-only.
 
 ## Data Ingest / Integrations
 - [x] Raspberry Pi GEX push (key-protected ingest)
