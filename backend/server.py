@@ -58,8 +58,10 @@ def promo_active() -> bool:
     return datetime.now(timezone.utc) < PROMO_END
 
 STRIPE_PACKAGES = {
-    "pro": {"name": "Blue Collar Alpha Pro", "amount": 1799, "promo_amount": 999, "trial_days": 0},
-    "premium": {"name": "Blue Collar Alpha Premium", "amount": 2899, "promo_amount": 1499, "trial_days": 7},
+    "pro": {"name": "Blue Collar Alpha Pro", "amount": 1799, "promo_amount": 999, "trial_days": 0, "interval": "month", "base": "pro"},
+    "premium": {"name": "Blue Collar Alpha Premium", "amount": 2899, "promo_amount": 1499, "trial_days": 7, "interval": "month", "base": "premium"},
+    "pro_annual": {"name": "Blue Collar Alpha Pro (Annual)", "amount": 17990, "trial_days": 0, "interval": "year", "base": "pro"},
+    "premium_annual": {"name": "Blue Collar Alpha Premium (Annual)", "amount": 28990, "trial_days": 7, "interval": "year", "base": "premium"},
 }
 _promo_coupons: dict = {}  # cache: off_cents -> coupon id
 ALGO = "HS256"
@@ -67,6 +69,7 @@ TIER_LEVEL = {"free": 0, "pro": 1, "premium": 2}
 FREE_MONTHLY_LIMIT = 20
 REFERRAL_MILESTONE = 3          # invite 3 friends -> free month of Pro
 REWARD_PRO_DAYS = 30
+REFERRAL_TIERS = {3: 30, 5: 60, 10: 120}   # invites -> days of free Pro (escalating)
 
 app = FastAPI()
 api = APIRouter(prefix="/api")
@@ -197,9 +200,9 @@ async def register(inp: RegisterIn):
             referred_by = referrer["id"]
             new_count = referrer.get("referral_count", 0) + 1
             upd = {"$inc": {"bonus_trades": REFERRAL_BONUS, "referral_count": 1}}
-            # Milestone: invite REFERRAL_MILESTONE friends -> free month of Pro
-            if new_count % REFERRAL_MILESTONE == 0:
-                until = datetime.now(timezone.utc) + timedelta(days=REWARD_PRO_DAYS)
+            # Tiered milestones: escalating free Pro time as they invite more friends.
+            if new_count in REFERRAL_TIERS:
+                until = datetime.now(timezone.utc) + timedelta(days=REFERRAL_TIERS[new_count])
                 upd["$set"] = {"reward_pro_until": until.isoformat()}
             await db.users.update_one({"id": referrer["id"]}, upd)
     doc = {"id": uid, "email": inp.email.lower(), "password_hash": hash_pw(inp.password),
@@ -1088,7 +1091,7 @@ async def create_checkout(inp: CheckoutIn, user=Depends(get_current_user)):
                     "currency": "usd",
                     "product_data": {"name": pkg["name"]},
                     "unit_amount": pkg["amount"],
-                    "recurring": {"interval": "month"},
+                    "recurring": {"interval": pkg.get("interval", "month")},
                 },
                 "quantity": 1,
             }],
@@ -1132,12 +1135,13 @@ async def payment_status(session_id: str, user=Depends(get_current_user)):
     paid = session.get("status") == "complete" and session.get("payment_status") in ("paid", "no_payment_required")
     if paid:
         tier = meta.get("tier", "free")
+        base_tier = STRIPE_PACKAGES.get(tier, {}).get("base", tier)
         await db.payments.update_one({"session_id": session_id},
             {"$set": {"status": "completed", "stripe_subscription_id": session.get("subscription"),
                       "stripe_customer_id": session.get("customer"),
                       "updated_at": datetime.now(timezone.utc).isoformat()}})
         await db.users.update_one({"id": user["id"]}, {"$set": {
-            "subscription_tier": tier, "stripe_subscription_id": session.get("subscription"),
+            "subscription_tier": base_tier, "stripe_subscription_id": session.get("subscription"),
             "stripe_customer_id": session.get("customer")}})
         await grant_role_if_linked(user["id"])
     u = await db.users.find_one({"id": user["id"]})
@@ -1179,8 +1183,9 @@ async def stripe_webhook(request: Request):
         meta = obj.get("metadata") or {}
         uid = meta.get("user_id"); tier = meta.get("tier")
         if uid and tier:
+            base_tier = STRIPE_PACKAGES.get(tier, {}).get("base", tier)
             await db.users.update_one({"id": uid}, {"$set": {
-                "subscription_tier": tier, "stripe_subscription_id": obj.get("subscription"),
+                "subscription_tier": base_tier, "stripe_subscription_id": obj.get("subscription"),
                 "stripe_customer_id": obj.get("customer")}})
             await grant_role_if_linked(uid)
             await db.payments.update_one({"session_id": obj.get("id")},

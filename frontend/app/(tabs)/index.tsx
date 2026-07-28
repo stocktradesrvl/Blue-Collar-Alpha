@@ -70,6 +70,7 @@ export default function Dashboard() {
   const [gex, setGex] = useState<any>(null);
   const [brokerAccts, setBrokerAccts] = useState<any[]>([]);
   const [reconcileOpen, setReconcileOpen] = useState(false);
+  const [gatedHits, setGatedHits] = useState(0);
   const [dismissedSig, setDismissedSig] = useState<string | null>(null);
 
   const loadMistakes = useCallback(async (w: "30" | "all") => {
@@ -92,6 +93,7 @@ export default function Dashboard() {
       if (b.needs_reconcile && (b.accounts || []).length) setReconcileOpen(true);
     } catch {}
     loadMistakes(mWindow);
+    try { setGatedHits((await storage.getItem<number>("tm_gated_hits", 0)) || 0); } catch {}
     try {
       const b = await api.get("/payments/billing");
       const end = b?.subscription?.trial_end;
@@ -138,8 +140,7 @@ export default function Dashboard() {
   const up = (stats?.total_pnl || 0) >= 0;
   const heroTint = empty ? "rgba(46,118,232,0.30)" : up ? "rgba(0,230,118,0.28)" : "rgba(255,61,0,0.28)";
 
-  const gexTeaser = (!gex && user?.subscription_tier !== "premium") ? (
-    <Animated.View entering={FadeInDown.duration(600).delay(300)}>
+  const gexTeaser = (!gex && user?.subscription_tier !== "premium") ? (    <Animated.View entering={FadeInDown.duration(600).delay(300)}>
       <Pressable testID="gex-teaser" onPress={() => router.push("/(tabs)/profile")}>
         <GradientCard accent={A.accent} style={styles.gexCard}>
           <View style={styles.gexHead}>
@@ -160,6 +161,24 @@ export default function Dashboard() {
       </Pressable>
     </Animated.View>
   ) : null;
+
+  const dismissNudge = async () => { setGatedHits(0); try { await storage.setItem("tm_gated_hits", 0); } catch {} };
+  const upgradeNudge = (user?.subscription_tier !== "premium" && gatedHits >= 3) ? (
+    <Animated.View entering={FadeInDown.duration(500)}>
+      <View style={styles.nudge}>
+        <Ionicons name="rocket" size={20} color={A.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.nudgeTitle}>You keep bumping into Premium features</Text>
+          <Text style={styles.nudgeSub}>Unlock GEX, market sentiment & the AI game plan.</Text>
+        </View>
+        <Pressable testID="nudge-upgrade" onPress={() => router.push("/(tabs)/profile")} style={[styles.nudgeBtn, { backgroundColor: A.accent }]}>
+          <Text style={[styles.nudgeBtnTxt, { color: A.onAccent }]}>See plans</Text>
+        </Pressable>
+        <Pressable testID="nudge-dismiss" onPress={dismissNudge} hitSlop={8}><Ionicons name="close" size={18} color={colors.onSurface3} /></Pressable>
+      </View>
+    </Animated.View>
+  ) : null;
+
 
   return (
     <View style={styles.flex}>
@@ -233,7 +252,7 @@ export default function Dashboard() {
                 <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
               </Pressable>
             </Animated.View>
-            <View style={{ marginTop: spacing.md }}>{gexTeaser}</View>
+            <View style={{ marginTop: spacing.md }}>{upgradeNudge}{gexTeaser}</View>
           </>
         ) : (
           <>
@@ -371,6 +390,7 @@ export default function Dashboard() {
             )}
 
             {!gex && user?.subscription_tier !== "premium" && gexTeaser}
+            {upgradeNudge}
 
             {lastTrade?.has_trade && (
               <Animated.View entering={FadeInDown.duration(700).delay(320)}>
@@ -523,6 +543,11 @@ const styles = StyleSheet.create({
   gexTitle: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1 },
   gexStalePill: { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: colors.warning + "22", borderRadius: radius.sm, paddingHorizontal: spacing.xs, paddingVertical: 1 },
   gexStaleTxt: { color: colors.warning, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.5 },
+  nudge: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.md },
+  nudgeTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base },
+  nudgeSub: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, marginTop: 1 },
+  nudgeBtn: { borderRadius: radius.pill, paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
+  nudgeBtnTxt: { fontFamily: font.displayBold, fontSize: fs.sm },
   gexRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm },
   gexItem: { flex: 1, alignItems: "center", gap: 2 },
   gexSym: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base, letterSpacing: 0.5 },

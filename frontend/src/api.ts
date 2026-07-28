@@ -19,6 +19,12 @@ async function req(path: string, method: string = "GET", body?: any) {
     const detail = (data && data.detail) || "Request failed";
     const err: any = new Error(typeof detail === "string" ? detail : "Request failed");
     err.status = res.status;
+    if (res.status === 402) {
+      try {
+        const n = (await storage.getItem<number>("tm_gated_hits", 0)) || 0;
+        await storage.setItem("tm_gated_hits", n + 1);
+      } catch {}
+    }
     throw err;
   }
   return data;

@@ -18,9 +18,9 @@ import { storage } from "@/src/utils/storage";
 import { BACKDROP_KEY, BACKDROPS } from "@/src/appearance";
 
 const PLANS = [
-  { tier: "free", name: "Free", price: "$0", promo: "", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
-  { tier: "pro", name: "Pro", price: "$17.99/mo", promo: "🎉 First month just $9.99", features: ["Unlimited trades", "Chart screenshot analysis", "Setup grading A–F", "Strategy rule checks", "Pre-Trade Grader"] },
-  { tier: "premium", name: "Premium", price: "$28.99/mo", promo: "🎉 7-day free trial, then $14.99 first month", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
+  { tier: "free", name: "Free", price: "$0", annualPrice: "$0", promo: "", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
+  { tier: "pro", name: "Pro", price: "$17.99/mo", annualPrice: "$179.90/yr", promo: "🎉 First month just $9.99", features: ["Unlimited trades", "Chart screenshot analysis", "Setup grading A–F", "Strategy rule checks", "Pre-Trade Grader"] },
+  { tier: "premium", name: "Premium", price: "$28.99/mo", annualPrice: "$289.90/yr", promo: "🎉 7-day free trial, then $14.99 first month", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
 ];
 
 export default function Profile() {
@@ -39,6 +39,7 @@ export default function Profile() {
   const [discordEnabled, setDiscordEnabled] = useState(false);
   const [lossInput, setLossInput] = useState(String(user?.daily_loss_limit || ""));
   const [digestOn, setDigestOn] = useState(user?.weekly_digest_enabled !== false);
+  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
 
   const toggleDigest = async (v: boolean) => {
     setDigestOn(v);
@@ -265,7 +266,7 @@ export default function Profile() {
 
           <View style={styles.prefDivider} />
           <Text style={styles.prefLabel}>Daily Loss Limit</Text>
-          <Text style={styles.prefHint}>Get a coaching alert on the Dashboard when your day's loss exceeds this. Set 0 to disable.</Text>
+          <Text style={styles.prefHint}>Get a coaching alert on the Dashboard when your day’s loss exceeds this. Set 0 to disable.</Text>
           <View style={styles.lossRow}>
             <Text style={styles.lossDollar}>$</Text>
             <TextInput
@@ -364,11 +365,25 @@ export default function Profile() {
           <Text style={styles.billingTxt}>Manage Billing & Invoices</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
         </Pressable>
+        <View style={styles.billingToggle}>
+          {(["monthly", "annual"] as const).map((b) => (
+            <Pressable key={b} testID={`billing-${b}`} onPress={() => setBilling(b)}
+              style={[styles.billingOpt, billing === b && { backgroundColor: A.accent }]}>
+              <Text style={[styles.billingOptTxt, billing === b && { color: A.onAccent }]}>
+                {b === "monthly" ? "Monthly" : "Annual · save ~17%"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
         {PLANS.map((p) => {
           const active = user?.subscription_tier === p.tier;
+          const isPaid = p.tier !== "free";
+          const annual = billing === "annual" && isPaid;
+          const checkoutTier = annual ? `${p.tier}_annual` : p.tier;
+          const priceStr = p.tier === "free" ? p.price : annual ? p.annualPrice : p.price;
           return (
             <View key={p.tier} style={[styles.plan, active && [styles.planActive, { borderColor: A.accent, shadowColor: A.accent }]]}>
-              {promoActive && p.promo ? (
+              {promoActive && p.promo && !annual ? (
                 <View style={styles.ribbon} pointerEvents="none">
                   <Text style={styles.ribbonTxt}>LAUNCH DEAL</Text>
                 </View>
@@ -377,16 +392,18 @@ export default function Profile() {
                 <View style={styles.planNameWrap}>
                   <Text style={styles.planName}>{p.name}</Text>
                 </View>
-                <Text style={styles.planPrice}>{p.price}</Text>
+                <Text style={styles.planPrice}>{priceStr}</Text>
               </View>
-              {promoActive && p.promo ? (
+              {annual && isPaid ? (
+                <View style={styles.promoBadge}><Text style={styles.promoTxt}>💰 2 months free vs monthly</Text></View>
+              ) : promoActive && p.promo ? (
                 <View style={styles.promoBadge}><Text style={styles.promoTxt}>{p.promo}</Text></View>
               ) : null}
               {p.features.map((f) => (
                 <View key={f} style={styles.feat}><Ionicons name="checkmark" size={16} color={colors.success} /><Text style={styles.featTxt}>{f}</Text></View>
               ))}
-              <Pressable testID={`select-${p.tier}`} disabled={active || busy !== null} style={[styles.planBtn, active && styles.planBtnActive]} onPress={() => change(p.tier)}>
-                {busy === p.tier ? <ActivityIndicator color={colors.onBrand} /> :
+              <Pressable testID={`select-${p.tier}`} disabled={active || busy !== null} style={[styles.planBtn, active && styles.planBtnActive]} onPress={() => change(checkoutTier)}>
+                {busy === checkoutTier ? <ActivityIndicator color={colors.onBrand} /> :
                   <Text style={[styles.planBtnTxt, active && { color: colors.onSurface2 }]}>{active ? "Current Plan" : p.tier === "free" ? "Downgrade to Free" : `Upgrade to ${p.name}`}</Text>}
               </Pressable>
             </View>
@@ -461,6 +478,9 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.divider, marginVertical: spacing.sm },
   billingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
   billingTxt: { flex: 1, color: colors.onSurface, fontFamily: font.display, fontSize: fs.lg },
+  billingToggle: { flexDirection: "row", backgroundColor: colors.surface2, borderRadius: radius.pill, padding: 3, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
+  billingOpt: { flex: 1, alignItems: "center", paddingVertical: spacing.sm, borderRadius: radius.pill },
+  billingOptTxt: { color: colors.onSurface2, fontFamily: font.displayBold, fontSize: fs.sm },
   plan: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.sm, overflow: "hidden", position: "relative" },
   ribbon: { position: "absolute", top: 16, right: -30, width: 128, transform: [{ rotate: "45deg" }], backgroundColor: colors.success, alignItems: "center", paddingVertical: 3, ...glow(colors.success, 0.5) },
   ribbonTxt: { color: "#04210F", fontFamily: font.displayBold, fontSize: 10, letterSpacing: 1 },
