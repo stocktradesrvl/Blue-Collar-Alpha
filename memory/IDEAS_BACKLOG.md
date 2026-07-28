@@ -3,6 +3,27 @@
 > Brainstorm only. Nothing here is built until explicitly greenlit.
 > Legend: [ ] idea · [~] discussing · [>] queued to build · [x] shipped
 
+## 🔜 NEXT BUILD QUEUE (greenlit 2026-06 fork — build these next)
+### Voice & AI Coaching
+- [>] Voice reply from the coach (TTS) — hands-free "talk to your coach" while reviewing trades
+- [>] Auto-tag emotion from the TONE of a voice note (stressed/confident) → correlate to P&L
+- [>] End-of-day spoken recap: one tap → coach reads the day back + one focus for tomorrow
+### Discord (bot now live)
+- [>] !wins command + scheduled WEEKLY leaderboard auto-post to a channel (hands-free engagement)
+- [>] !gex command — members pull current SPY/SPX regime + walls from the bot
+- [>] Streak/milestone shout-outs auto-posted (e.g., "🔥 Trader-4F2A: 5 green days")
+### GEX / Options
+- [>] Per-expiry ingest → 0DTE vs multi-expiry toggle (needs Pi per-expiry breakdown first)
+- [>] Intraday flip-cross PUSH alert (spot crosses gamma flip) — back-testable via scorecard
+- [>] "Regime of the day" auto-note injected into the AI Game Plan
+### Monetization / Retention
+- [>] Free 7-day Premium trial with auto-downgrade
+- [>] Annual-plan upsell banner triggered after N months of monthly billing
+### Analytics
+- [>] R-multiple / expectancy dashboard + setup leaderboard
+- [>] Time-of-day & day-of-week P&L heatmap
+
+
 ## GEX / Options Intelligence  — ALL QUEUED
 - [>] Expected-move band (spot ± wall distance) — extend to glance widget
 - [>] GEX intraday history sparkline per symbol — multi-day extension
