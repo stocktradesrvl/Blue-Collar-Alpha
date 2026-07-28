@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, json, uuid, re, httpx, hashlib, asyncio, base64, tempfile
+import os, logging, json, uuid, re, httpx, hashlib, asyncio, base64, tempfile, hmac, html as _html
 from pathlib import Path
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
@@ -23,11 +23,13 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
-JWT_SECRET = os.environ.get('JWT_SECRET', 'dev_secret')
+JWT_SECRET = os.environ.get('JWT_SECRET') or ''
+if not JWT_SECRET or len(JWT_SECRET) < 16:
+    raise RuntimeError("JWT_SECRET is missing or too weak. Set a strong JWT_SECRET in the environment.")
 import stripe
 from fastapi import Request
 from fastapi.responses import HTMLResponse
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlparse
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 BACKEND_URL = os.environ.get('EXPO_BACKEND_URL') or ''
 
@@ -60,6 +62,56 @@ PROMO_END = datetime(2026, 8, 11, 0, 0, 0, tzinfo=timezone.utc)
 
 def promo_active() -> bool:
     return datetime.now(timezone.utc) < PROMO_END
+
+# ---------- Safe redirect (prevents reflected XSS / open redirect on return pages) ----------
+_APP_SCHEME = (os.environ.get('APP_SCHEME') or 'frontend').lower()
+_BLOCKED_SCHEMES = {"javascript", "data", "vbscript", "file"}
+
+def _redirect_target_ok(url: str) -> bool:
+    """Allow only safe return targets: the app's own deep-link scheme, exp(s)://,
+    or http(s):// pointing at our own known host. Blocks javascript:/data: etc."""
+    try:
+        p = urlparse(url)
+    except Exception:
+        return False
+    scheme = (p.scheme or "").lower()
+    if not scheme or scheme in _BLOCKED_SCHEMES:
+        return False
+    if scheme in (_APP_SCHEME, "exp", "exps"):
+        return True
+    if scheme in ("http", "https"):
+        host = (p.hostname or "").lower()
+        allowed = set()
+        for src in (PUBLIC_APP_URL, BACKEND_URL):
+            if src:
+                h = urlparse(src).hostname
+                if h:
+                    allowed.add(h.lower())
+        # Allow Emergent preview/app hosts by suffix so the web preview keeps working.
+        if host in allowed or host.endswith(".emergentagent.com") or host.endswith(".emergent.host"):
+            return True
+        return False
+    return False
+
+def _safe_redirect_response(rt: str, params: dict, ok_msg: str, accent: str = "#5865F2") -> HTMLResponse:
+    """Build a redirect page with the target properly encoded for both HTML and JS
+    contexts. Falls back to a plain 'return to the app' page for unsafe targets."""
+    if not rt or not _redirect_target_ok(rt):
+        return HTMLResponse(
+            "<html><body style='background:#121212;color:#fff;font-family:sans-serif;text-align:center;padding-top:80px'>"
+            f"<p>{_html.escape(ok_msg)} You can close this window and return to the app.</p></body></html>")
+    sep = "&" if "?" in rt else "?"
+    target = rt + sep + urlencode(params)
+    attr = _html.escape(target, quote=True)          # safe inside HTML attributes
+    js = (json.dumps(target).replace("<", "\\u003c")  # safe inside a <script> JS string
+          .replace(">", "\\u003e").replace("&", "\\u0026"))
+    return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="0;url={attr}"><title>Redirecting…</title></head>
+<body style="background:#121212;color:#fff;font-family:sans-serif;text-align:center;padding-top:80px">
+<p>{_html.escape(ok_msg)} Returning to the app…</p>
+<a href="{attr}" style="color:{accent}">Tap here if not redirected</a>
+<script>window.location.href={js};</script></body></html>""")
+
 
 STRIPE_PACKAGES = {
     "pro": {"name": "Blue Collar Alpha Pro", "amount": 1799, "promo_amount": 999, "trial_days": 0, "interval": "month", "base": "pro"},
@@ -236,9 +288,11 @@ async def me(user=Depends(get_current_user)):
 
 @api.post("/auth/tier")
 async def set_tier(inp: TierIn, user=Depends(get_current_user)):
-    if inp.tier not in TIER_LEVEL:
-        raise HTTPException(status_code=400, detail="Invalid tier")
-    await db.users.update_one({"id": user["id"]}, {"$set": {"subscription_tier": inp.tier}})
+    # Users may only DOWNGRADE to free here. Paid tiers are granted exclusively by
+    # verified Stripe events (/payments/status + webhook) — never by client request.
+    if inp.tier != "free":
+        raise HTTPException(status_code=403, detail="Paid tiers can only be activated through checkout.")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"subscription_tier": "free"}})
     u = await db.users.find_one({"id": user["id"]})
     return public_user(u)
 
@@ -401,16 +455,7 @@ async def revoke_role_by_query(query: dict):
         await db.users.update_one({"id": u["id"]}, {"$unset": {"discord_welcomed": ""}})
 
 def _discord_app_redirect(rt: str, params: dict) -> HTMLResponse:
-    if not rt:
-        return HTMLResponse("<html><body style='background:#121212;color:#fff;font-family:sans-serif;text-align:center;padding-top:80px'><p>Discord linked. You can close this window and return to the app.</p></body></html>")
-    sep = "&" if "?" in rt else "?"
-    target = rt + sep + urlencode(params)
-    return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
-<meta http-equiv="refresh" content="0;url={target}"><title>Redirecting…</title></head>
-<body style="background:#121212;color:#fff;font-family:sans-serif;text-align:center;padding-top:80px">
-<p>Discord connected. Returning to the app…</p>
-<a href="{target}" style="color:#5865F2">Tap here if not redirected</a>
-<script>window.location.href="{target}";</script></body></html>""")
+    return _safe_redirect_response(rt, params, "Discord connected.", accent="#5865F2")
 
 class DiscordLinkIn(BaseModel):
     origin: str
@@ -486,7 +531,7 @@ async def discord_unlink(user=Depends(get_current_user)):
 
 # ---------- Discord bot integration (slash commands / leaderboard) ----------
 def _require_bot_key(x_bot_key: str):
-    if not DISCORD_BOT_KEY or x_bot_key != DISCORD_BOT_KEY:
+    if not DISCORD_BOT_KEY or not hmac.compare_digest(x_bot_key, DISCORD_BOT_KEY):
         raise HTTPException(status_code=401, detail="Invalid bot key")
 
 @api.get("/discord/bot/stats")
@@ -1063,7 +1108,7 @@ async def unsubscribe(token: str = ""):
 
 @api.post("/jobs/send-weekly-digest")
 async def send_weekly_digest(x_ingest_key: str = Header(default=""), base_url: str = ""):
-    if not GEX_INGEST_KEY or x_ingest_key != GEX_INGEST_KEY:
+    if not GEX_INGEST_KEY or not hmac.compare_digest(x_ingest_key, GEX_INGEST_KEY):
         raise HTTPException(status_code=401, detail="Invalid ingest key")
     if not (RESEND_API_KEY and RESEND_FROM_EMAIL):
         raise HTTPException(status_code=503, detail="Email not configured")
@@ -1275,14 +1320,9 @@ async def create_checkout(inp: CheckoutIn, user=Depends(get_current_user)):
 
 @api.get("/payments/redirect", response_class=HTMLResponse)
 async def payment_redirect(rt: str, session_id: str = "", status: str = ""):
-    sep = "&" if "?" in rt else "?"
-    target = f"{rt}{sep}session_id={quote(session_id)}&status={status or 'success'}"
-    return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
-<meta http-equiv="refresh" content="0;url={target}"><title>Redirecting…</title></head>
-<body style="background:#121212;color:#fff;font-family:sans-serif;text-align:center;padding-top:80px">
-<p>Payment {'cancelled' if status=='cancel' else 'complete'}. Returning to the app…</p>
-<a href="{target}" style="color:#FFB74D">Tap here if not redirected</a>
-<script>window.location.href="{target}";</script></body></html>""")
+    msg = "Payment cancelled." if status == "cancel" else "Payment complete."
+    return _safe_redirect_response(
+        rt, {"session_id": session_id, "status": status or "success"}, msg, accent="#FFB74D")
 
 @api.get("/payments/status")
 async def payment_status(session_id: str, user=Depends(get_current_user)):
@@ -1882,7 +1922,7 @@ def _clean_gex(d: dict) -> dict:
 
 @api.post("/ingest/gex")
 async def ingest_gex(inp: GexIn, x_ingest_key: str = Header(default="")):
-    if not GEX_INGEST_KEY or x_ingest_key != GEX_INGEST_KEY:
+    if not GEX_INGEST_KEY or not hmac.compare_digest(x_ingest_key, GEX_INGEST_KEY):
         raise HTTPException(status_code=401, detail="Invalid ingest key")
     sym = inp.symbol.upper().strip()
     if sym not in GEX_SYMBOLS:
@@ -2072,14 +2112,26 @@ async def config():
             "discord_enabled": _discord_configured()}
 
 app.include_router(api)
-app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"],
+app.add_middleware(CORSMiddleware, allow_credentials=False, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
 # Accounts that must always have permanent full (Premium) access.
-PREMIUM_SEED_ACCOUNTS = [
-    {"email": "stocktradesrvl@gmail.com", "password": "TradeAdmin123"},
-    {"email": "owner@trademind.ai", "password": "Owner1234"},
-]
+def _load_seed_accounts() -> list:
+    """Seed/admin accounts are read from the SEED_ACCOUNTS env var (server-side secret),
+    formatted as 'email1:password1,email2:password2'. Never hard-coded in source."""
+    raw = os.environ.get("SEED_ACCOUNTS", "").strip()
+    accounts = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part or ":" not in part:
+            continue
+        email, pw = part.split(":", 1)
+        email, pw = email.strip(), pw.strip()
+        if email and pw:
+            accounts.append({"email": email, "password": pw})
+    return accounts
+
+PREMIUM_SEED_ACCOUNTS = _load_seed_accounts()
 
 @app.on_event("startup")
 async def seed_premium_accounts():

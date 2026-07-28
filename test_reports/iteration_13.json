@@ -1,0 +1,36 @@
+{
+  "summary": "Backend-only verification of 4 security fixes for Blue Collar Alpha (pre-Google-Play). 24/24 tests PASS. SEC-001 tier lockdown: POST /api/auth/tier returns 403 for tier=premium/pro (verified on both a throwaway @example.com user AND the admin — admin also cannot self-promote); tier=free returns 200 and downgrades on the throwaway. SEC-004 safe redirect: /api/payments/redirect exercises _safe_redirect_response — javascript:alert(1)// and https://evil.com produce a plain page with NO window.location.href script; frontend://paywall and https://something.emergentagent.com produce a proper redirect with JSON-encoded target; </script><script>alert(1)</script> injected on frontend:// scheme is \\u003c/script\\u003e-escaped inside the JS string literal (verified by regex-extracting our <script> body — no </script>, no <script>, no alert(1) reflected raw; escaped forms present). SEC-003 JWT fail-closed: server boots with strong JWT_SECRET, admin login returns a working access_token and /api/auth/me returns the correct email. Seed accounts: stocktradesrvl@gmail.com logs in and is subscription_tier=premium (from SEED_ACCOUNTS env). Constant-time key checks: POST /api/ingest/gex 200 with correct X-Ingest-Key, 401 with wrong; GET /api/discord/bot/leaderboard 200 with correct X-Bot-Key, 401 with wrong. Regression: /api/config, /api/dashboard/stats, /api/gex, /api/gex/scorecard, POST /api/user/settings (toggle on/off), GET /api/trades all 200 with admin premium token. CORS allow_credentials=False: /api/config public call succeeds, preflight OPTIONS returns 200/204, and Access-Control-Allow-Credentials is NOT 'true'. NOTE: an earlier assertion mis-flagged a Cloudflare-injected /cdn-cgi challenge <script> block as an XSS reflection — verified via raw HTML that the extra <script> is CF's own edge-injected iframe challenge, unrelated to user input; assertion refactored to isolate our template's <script> body and check that specifically. Discord gateway PrivilegedIntentsRequired startup error observed in logs (per note, expected — HTTP API unaffected).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_security_fixes.py",
+    "/app/test_reports/pytest/iter13_security.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 2186 lines — still worth splitting into modules (auth/, discord/, payments/, gex/, coach/) before further growth, but not blocking.",
+    "_safe_redirect_response correctly does HTML-attr escape via html.escape(quote=True) for the meta refresh + <a href>, and json.dumps + \\u003c/\\u003e/\\u0026 escaping for the JS string literal — both contexts covered.",
+    "_redirect_target_ok allowlists app scheme 'frontend', exp/exps, and http(s) only for PUBLIC_APP_URL host or *.emergentagent.com / *.emergent.host suffixes. Solid.",
+    "hmac.compare_digest is used for both GEX_INGEST_KEY (line 1111, 1925) and DISCORD_BOT_KEY (line 534) — constant-time OK. Both also short-circuit if the server-side secret is empty.",
+    "JWT_SECRET fail-closed enforced at import time: `raise RuntimeError` if missing or < 16 chars — no silent weak fallback (server.py:26-28).",
+    "POST /api/auth/tier only accepts tier='free'; anything else -> 403 (server.py:293-294). Correctly forces paid activation through /payments/status.",
+    "CORS middleware: allow_credentials=False, allow_origins=['*'] (server.py:2115). Compatible: '*' with credentials would have been rejected by browsers anyway.",
+    "SEED_ACCOUNTS is parsed from env and premium is re-applied on startup (server.py:2120-2140) — confirmed premium restored for admin even after we tested tier=premium 403 path against it."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_security_fixes.py (new)"
+  ],
+  "success_rate": {"backend": "100% (24/24)", "frontend": "N/A - skipped per request"},
+  "seed_data_creation": "Created one TEST_free_<uuid>@example.com throwaway user (registered, then downgraded to free via /api/auth/tier for the 200 assertion). Left in DB, harmless.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 4 security fixes verified end-to-end via /app/backend/tests/test_security_fixes.py (24 tests, ~2.3s). Reads GEX_INGEST_KEY and DISCORD_BOT_KEY from /app/backend/.env via python-dotenv. Admin creds: stocktradesrvl@gmail.com / TradeAdmin123. If /api/payments/redirect is re-tested via curl, be aware the Emergent preview edge injects a Cloudflare /cdn-cgi challenge <script> — that is NOT user-reflected content; isolate our own <script>window.location.href=...;</script> block before asserting on script count."
+}
