@@ -82,6 +82,62 @@ function ExpectedRange({ spot, put, call, accent }: { spot?: number; put?: numbe
 }
 
 
+function Scorecard({ card, accent }: { card?: any; accent: string }) {
+  if (!card) return null;
+  const n = card.samples || 0;
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Accuracy Scorecard</Text>
+      {n < 2 ? (
+        <View style={styles.scEmpty}>
+          <Ionicons name="hourglass-outline" size={16} color={colors.onSurface3} />
+          <Text style={styles.scEmptyTxt}>Building history — the scorecard fills in as daily GEX snapshots accumulate. Check back after a few sessions.</Text>
+        </View>
+      ) : (
+        <>
+          <View style={styles.scRow}>
+            <View style={styles.scStat}>
+              <Text style={[styles.scVal, { color: accent }]}>{card.band_accuracy != null ? `${card.band_accuracy}%` : "—"}</Text>
+              <Text style={styles.scLabel}>Stayed in wall band ({card.band_samples}d)</Text>
+            </View>
+            <View style={styles.scStat}>
+              <Text style={styles.scVal}>{n}</Text>
+              <Text style={styles.scLabel}>Days scored</Text>
+            </View>
+          </View>
+          <View style={styles.scRow}>
+            <View style={styles.scStat}>
+              <Text style={[styles.scVal, { color: colors.success }]}>{card.avg_move_positive_gamma != null ? `${card.avg_move_positive_gamma}%` : "—"}</Text>
+              <Text style={styles.scLabel}>Avg move · +gamma days</Text>
+            </View>
+            <View style={styles.scStat}>
+              <Text style={[styles.scVal, { color: colors.error }]}>{card.avg_move_negative_gamma != null ? `${card.avg_move_negative_gamma}%` : "—"}</Text>
+              <Text style={styles.scLabel}>Avg move · -gamma days</Text>
+            </View>
+          </View>
+          {(card.recent || []).length ? (
+            <View style={styles.scRecent}>
+              {(card.recent || []).map((r: any, i: number) => (
+                <View key={i} style={styles.scRecentRow}>
+                  <Text style={styles.scRecentDate}>{r.date}</Text>
+                  <Text style={[styles.scRecentMove, { color: r.realized_pct >= 0 ? colors.success : colors.error }]}>
+                    {r.realized_pct >= 0 ? "+" : ""}{r.realized_pct}%
+                  </Text>
+                  {r.within_band != null ? (
+                    <Ionicons name={r.within_band ? "checkmark-circle" : "close-circle"} size={15} color={r.within_band ? colors.success : colors.error} />
+                  ) : <Text style={styles.scRecentDash}>—</Text>}
+                </View>
+              ))}
+            </View>
+          ) : null}
+          <Text style={styles.rangeNote}>Green check = next day closed inside the predicted put/call wall band. In positive-gamma regimes moves should be smaller than negative-gamma regimes.</Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+
 function StrikeRow({ s, max, tag }: { s: any; max: number; tag?: string }) {
   const pos = (s.gex ?? 0) >= 0;
   const w = Math.max((Math.abs(s.gex ?? 0) / (max || 1)) * 100, 3);
@@ -109,6 +165,7 @@ export default function Gex() {
   const [refreshing, setRefreshing] = useState(false);
   const [locked, setLocked] = useState(false);
   const [error, setError] = useState<string>("");
+  const [scorecard, setScorecard] = useState<Record<string, any>>({});
 
   const load = useCallback(async () => {
     try {
@@ -118,6 +175,12 @@ export default function Gex() {
       setSnaps(map);
       setLocked(false);
       setError("");
+      try {
+        const sc = await api.get("/gex/scorecard");
+        const scm: Record<string, any> = {};
+        (sc.cards || []).forEach((c: any) => { scm[c.symbol] = c; });
+        setScorecard(scm);
+      } catch {}
     } catch (e: any) {
       if (e.status === 402) setLocked(true);
       else setError(e.message || "Could not load GEX data");
@@ -264,6 +327,8 @@ export default function Gex() {
 
               <ExpectedRange spot={d.spot} put={d.put_wall} call={d.call_wall} accent={A.accent} />
 
+              <Scorecard card={scorecard[sym]} accent={A.accent} />
+
               {strikes.length ? (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Strike Gamma Heatmap</Text>
@@ -334,4 +399,15 @@ const styles = StyleSheet.create({
   strikeTrack: { height: 8, borderRadius: radius.pill, backgroundColor: colors.surface3, overflow: "hidden" },
   strikeFill: { height: 8, borderRadius: radius.pill },
   strikeGex: { fontFamily: font.displayBold, fontSize: fs.sm },
+  scEmpty: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  scEmptyTxt: { flex: 1, color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, lineHeight: 18 },
+  scRow: { flexDirection: "row", gap: spacing.sm },
+  scStat: { flex: 1, backgroundColor: colors.surface3, borderRadius: radius.md, padding: spacing.md, gap: 2 },
+  scVal: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
+  scLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
+  scRecent: { marginTop: spacing.xs, gap: 4 },
+  scRecentRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  scRecentDate: { flex: 1, color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm },
+  scRecentMove: { fontFamily: font.displayBold, fontSize: fs.sm, minWidth: 56, textAlign: "right" },
+  scRecentDash: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
 });

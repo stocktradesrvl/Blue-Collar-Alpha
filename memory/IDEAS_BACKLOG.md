@@ -9,8 +9,8 @@
 - [>] GEX "regime" banner: Positive vs Negative gamma with plain-English trade implications
 - [>] Flip-level proximity alert: notify when spot crosses the gamma flip
 - [>] Wall-break alert: price closes beyond call/put wall
-- [>] 0DTE vs multi-expiry GEX toggle (if Pi can send per-expiry)
-- [>] Historical GEX vs next-day realized move accuracy scorecard
+- [~] 0DTE vs multi-expiry GEX toggle — DEFERRED: Pi currently sums all expiries into one net_gex; needs per-expiry breakdown in ingest payload first (user will add when we're ready to consume it)
+- [x] Historical GEX vs next-day realized move accuracy scorecard — /api/gex/scorecard + gex.tsx card; daily snapshots logged to gex_daily on every ingest
 
 ## AI Coaching / Journaling — ALL QUEUED
 - [x] Voice-note trade journaling (speech-to-text via Whisper) with AI summary — mic on Coach screen (Premium)

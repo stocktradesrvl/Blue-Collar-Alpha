@@ -13,6 +13,7 @@ import bcrypt
 from jose import jwt, JWTError
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
+from discord_bot import build_client as _build_discord_client
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -512,6 +513,9 @@ async def discord_bot_stats(discord_id: str, x_bot_key: str = Header(default="")
 async def discord_bot_leaderboard(window: int = 30, limit: int = 10, x_bot_key: str = Header(default="")):
     """Anonymized, opt-in leaderboard ranked by realized P&L over the window (days)."""
     _require_bot_key(x_bot_key)
+    return await _compute_leaderboard(window, limit)
+
+async def _compute_leaderboard(window: int = 30, limit: int = 10) -> dict:
     users = await db.users.find({"leaderboard_optin": True}).to_list(5000)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=max(1, window))).isoformat()
     rows = []
@@ -1892,6 +1896,15 @@ async def ingest_gex(inp: GexIn, x_ingest_key: str = Header(default="")):
     await db.gex_snapshots.update_one({"symbol": sym}, {"$set": doc}, upsert=True)
     await db.gex_snapshots.update_one({"symbol": sym},
         {"$push": {"net_gex_history": {"$each": [{"t": doc["timestamp"], "v": doc["net_gex"]}], "$slice": -30}}})
+    # Log one prediction record per (symbol, trading day) for the accuracy scorecard.
+    day = doc["timestamp"][:10]
+    await db.gex_daily.update_one(
+        {"symbol": sym, "date": day},
+        {"$set": {"symbol": sym, "date": day, "spot": inp.spot,
+                  "net_gex": inp.net_gex, "flip_point": inp.flip_point,
+                  "call_wall": inp.call_wall, "put_wall": inp.put_wall,
+                  "updated_at": now}},
+        upsert=True)
     return {"ok": True, "symbol": sym, "strikes": len(doc.get("strikes", []))}
 
 @api.get("/gex")
@@ -1904,6 +1917,42 @@ async def gex_all(user=Depends(get_current_user)):
         if d:
             out.append(_clean_gex(d))
     return {"symbols": GEX_SYMBOLS, "snapshots": out}
+
+@api.get("/gex/scorecard")
+async def gex_scorecard(user=Depends(get_current_user)):
+    """Historical accuracy of GEX levels vs the next day's realized move.
+    Pairs each day's prediction (walls/flip/regime) with the following day's spot."""
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        raise HTTPException(status_code=402, detail="GEX Tracker is a Premium feature. Upgrade to unlock.")
+    cards = []
+    for sym in GEX_SYMBOLS:
+        days = await db.gex_daily.find({"symbol": sym}).sort("date", 1).to_list(400)
+        pairs = []
+        for i in range(len(days) - 1):
+            d, nx = days[i], days[i + 1]
+            spot, nspot = d.get("spot"), nx.get("spot")
+            if not spot or not nspot:
+                continue
+            realized_pct = (nspot - spot) / spot * 100
+            cw, pw = d.get("call_wall"), d.get("put_wall")
+            within = (pw <= nspot <= cw) if (cw and pw) else None
+            regime = "positive" if (d.get("net_gex") or 0) >= 0 else "negative"
+            pairs.append({"date": nx["date"], "realized_pct": round(realized_pct, 2),
+                          "within_band": within, "regime": regime, "abs_move": abs(realized_pct)})
+        band = [p for p in pairs if p["within_band"] is not None]
+        band_acc = round(sum(1 for p in band if p["within_band"]) / len(band) * 100, 1) if band else None
+        pos = [p["abs_move"] for p in pairs if p["regime"] == "positive"]
+        neg = [p["abs_move"] for p in pairs if p["regime"] == "negative"]
+        cards.append({
+            "symbol": sym,
+            "samples": len(pairs),
+            "band_accuracy": band_acc,
+            "band_samples": len(band),
+            "avg_move_positive_gamma": round(sum(pos) / len(pos), 2) if pos else None,
+            "avg_move_negative_gamma": round(sum(neg) / len(neg), 2) if neg else None,
+            "recent": pairs[-5:][::-1],
+        })
+    return {"symbols": GEX_SYMBOLS, "cards": cards}
 
 @api.get("/gex/{symbol}")
 async def gex_one(symbol: str, user=Depends(get_current_user)):
@@ -2061,3 +2110,24 @@ async def seed_premium_accounts():
 @app.on_event("shutdown")
 async def shutdown():
     client.close()
+    if _discord_gateway is not None:
+        try:
+            await _discord_gateway.close()
+        except Exception:
+            pass
+
+_discord_gateway = None
+
+@app.on_event("startup")
+async def start_discord_gateway():
+    """Start a persistent Discord gateway bot for !stats / !leaderboard commands."""
+    global _discord_gateway
+    if not DISCORD_BOT_TOKEN or os.environ.get("DISCORD_BOT_GATEWAY", "1") != "1":
+        logger.info("Discord gateway bot disabled (no token or DISCORD_BOT_GATEWAY!=1)")
+        return
+    try:
+        _discord_gateway = _build_discord_client(db, _compute_stats, _compute_leaderboard)
+        asyncio.create_task(_discord_gateway.start(DISCORD_BOT_TOKEN))
+        logger.info("Discord gateway bot starting…")
+    except Exception as e:
+        logger.error("discord gateway start err %s", e)
