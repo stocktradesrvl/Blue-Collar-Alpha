@@ -13,12 +13,12 @@
 - [>] Historical GEX vs next-day realized move accuracy scorecard
 
 ## AI Coaching / Journaling — ALL QUEUED
-- [>] Voice-note trade journaling (speech-to-text) with AI summary
-- [>] Weekly AI "game plan" generated from last week's mistakes + upcoming GEX levels
-- [>] Trade replay: annotate the screenshot with AI-detected entry/exit quality
-- [>] "Ask my journal" — chat over the user's own trade history
-- [>] Emotion vs P&L correlation insights (tie existing emotion tags to outcomes)
-- [>] Rule-adherence streak tracking + nudges
+- [x] Voice-note trade journaling (speech-to-text via Whisper) with AI summary — mic on Coach screen (Premium)
+- [x] Weekly AI "game plan" generated from last week's mistakes + upcoming GEX levels
+- [ ] Trade replay: annotate the screenshot with AI-detected entry/exit quality (covered largely by AI Debrief)
+- [x] "Ask my journal" — chat over the user's own trade history (AI Coach chat)
+- [x] Emotion vs P&L correlation insights (tie existing emotion tags to outcomes)
+- [x] Rule-adherence streak tracking + nudges
 
 ## Analytics / Dashboards
 - [ ] R-multiple / expectancy metrics
@@ -30,17 +30,17 @@
 ## Community / Discord — ALL QUEUED
 - [x] Discord OAuth link + auto subscriber role on subscribe
 - [x] Discord welcome DM on subscribe
-- [>] Post user's opted-in wins to a #wins channel (with consent toggle)
-- [>] Discord slash command to pull your own stats
-- [>] Leaderboard channel (opt-in, anonymized handles)
+- [x] Post user's opted-in wins to a #wins channel (with consent toggle) — needs DISCORD_WINS_CHANNEL_ID set
+- [x] Discord slash command to pull your own stats — bot-key protected /api/discord/bot/stats
+- [x] Leaderboard channel (opt-in, anonymized handles) — /api/discord/bot/leaderboard (Trader-XXXX aliases)
 
 ## Monetization / Retention — ALL QUEUED
 - [x] Free/Pro/Premium tiers + Stripe
 - [x] GEX Premium teaser on dashboard
-- [>] Annual plan option (discount vs monthly)
-- [>] Referral rewards expansion (tiered milestones)
+- [x] Annual plan option (discount vs monthly)
+- [x] Referral rewards expansion (tiered milestones)
 - [>] Free-trial of Premium (X days) with auto-downgrade
-- [>] "Upgrade nudge" when free user hits a gated feature repeatedly
+- [x] "Upgrade nudge" when free user hits a gated feature repeatedly
 
 ## Multi-Broker Balance Reconciliation — SHIPPED ✅
 Goal: track cash/account balances across multiple brokers, reconcile on login.

@@ -1129,7 +1129,7 @@ async def coach_transcribe(inp: VoiceIn, user=Depends(get_current_user)):
     if ext not in ("m4a", "mp3", "mp4", "wav", "webm", "mpeg", "mpga"):
         ext = "m4a"
     try:
-        raw = base64.b64decode(inp.audio_base64)
+        raw = base64.b64decode(inp.audio_base64, validate=True)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid audio data")
     if len(raw) > 24 * 1024 * 1024:
