@@ -28,6 +28,9 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "RECORD_AUDIO"
+      ],
+      "blockedPermissions": [
+        "com.google.android.gms.permission.AD_ID"
       ]
     },
     "web": {
