@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share, TextInput, KeyboardAvoidingView, Platform, Switch } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share, TextInput, KeyboardAvoidingView, Platform, Switch, Modal } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -42,6 +42,26 @@ export default function Profile() {
   const [shareWins, setShareWins] = useState(!!user?.discord_share_wins);
   const [leaderboard, setLeaderboard] = useState(!!user?.leaderboard_optin);
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [delPw, setDelPw] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const isDiscordOnly = (user?.email || "").endsWith("@bca.local");
+
+  const confirmDelete = async () => {
+    if (!isDiscordOnly && !delPw) { toast("Enter your password to confirm", "error"); return; }
+    setDeleting(true);
+    try {
+      await api.post("/user/delete-account", { password: delPw });
+      setDeleteOpen(false);
+      toast("Your account has been deleted", "success");
+      await logout();
+    } catch (e: any) {
+      toast(e.message || "Could not delete account", "error");
+    } finally {
+      setDeleting(false);
+      setDelPw("");
+    }
+  };
 
   const toggleShareWins = async (v: boolean) => {
     setShareWins(v);
@@ -446,7 +466,35 @@ export default function Profile() {
           <Ionicons name="log-out-outline" size={20} color={colors.error} />
           <Text style={styles.logoutTxt}>Log Out</Text>
         </Pressable>
+
+        <Pressable testID="delete-account-btn" style={styles.deleteAcct} onPress={() => setDeleteOpen(true)}>
+          <Ionicons name="trash-outline" size={18} color={colors.onSurface3} />
+          <Text style={styles.deleteAcctTxt}>Delete Account</Text>
+        </Pressable>
       </ScrollView>
+
+      <Modal visible={deleteOpen} transparent animationType="fade" onRequestClose={() => setDeleteOpen(false)}>
+        <View style={styles.delOverlay}>
+          <View style={styles.delCard}>
+            <View style={styles.delIcon}><Ionicons name="warning" size={26} color={colors.error} /></View>
+            <Text style={styles.delTitle}>Delete your account?</Text>
+            <Text style={styles.delBody}>
+              This permanently deletes your account and all your data — trades, strategies, coach history,
+              broker balances and subscription. This cannot be undone.
+            </Text>
+            {!isDiscordOnly && (
+              <TextInput testID="delete-password" style={styles.delInput} value={delPw} onChangeText={setDelPw}
+                secureTextEntry placeholder="Enter your password to confirm" placeholderTextColor={colors.onSurface3} />
+            )}
+            <Pressable testID="delete-confirm" style={styles.delConfirm} onPress={confirmDelete} disabled={deleting}>
+              {deleting ? <ActivityIndicator color="#fff" /> : <Text style={styles.delConfirmTxt}>Delete Forever</Text>}
+            </Pressable>
+            <Pressable testID="delete-cancel" style={styles.delCancel} onPress={() => { setDeleteOpen(false); setDelPw(""); }} disabled={deleting}>
+              <Text style={styles.delCancelTxt}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -532,4 +580,16 @@ const styles = StyleSheet.create({
   planBtnTxt: { color: colors.onBrand, fontFamily: font.displayBold, fontSize: fs.base },
   logout: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.xl, padding: spacing.lg },
   logoutTxt: { color: colors.error, fontFamily: font.display, fontSize: fs.lg },
+  deleteAcct: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, marginTop: -spacing.sm, marginBottom: spacing.lg, padding: spacing.md },
+  deleteAcctTxt: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.base, textDecorationLine: "underline" },
+  delOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  delCard: { width: "100%", maxWidth: 400, backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.xl, gap: spacing.md, alignItems: "center" },
+  delIcon: { width: 52, height: 52, borderRadius: radius.pill, backgroundColor: colors.error + "22", alignItems: "center", justifyContent: "center" },
+  delTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl, textAlign: "center" },
+  delBody: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, textAlign: "center", lineHeight: 20 },
+  delInput: { width: "100%", backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, color: colors.onSurface, fontFamily: font.text, fontSize: fs.base },
+  delConfirm: { width: "100%", backgroundColor: colors.error, borderRadius: radius.md, padding: spacing.md, alignItems: "center", marginTop: spacing.xs },
+  delConfirmTxt: { color: "#fff", fontFamily: font.displayBold, fontSize: fs.lg },
+  delCancel: { width: "100%", padding: spacing.sm, alignItems: "center" },
+  delCancelTxt: { color: colors.onSurface2, fontFamily: font.display, fontSize: fs.base },
 });

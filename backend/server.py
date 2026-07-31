@@ -347,6 +347,40 @@ async def set_balance(inp: BalanceIn, user=Depends(get_current_user)):
     u = await db.users.find_one({"id": user["id"]})
     return public_user(u)
 
+class DeleteAccountIn(BaseModel):
+    password: Optional[str] = None
+
+@api.post("/user/delete-account")
+async def delete_account(inp: DeleteAccountIn, user=Depends(get_current_user)):
+    """Permanently delete the user's account and all associated data (Play/App Store
+    requirement for apps with account creation)."""
+    # Discord-login-only accounts have a random password they never set, so skip the
+    # password check for them; everyone else must confirm with their password.
+    is_discord_only = (user.get("email") or "").endswith("@bca.local")
+    if not is_discord_only:
+        if not inp.password or not verify_pw(inp.password, user.get("password_hash", "")):
+            raise HTTPException(status_code=400, detail="Password is incorrect")
+    uid = user["id"]
+    sub_id = user.get("stripe_subscription_id")
+    if sub_id:
+        try:
+            stripe.Subscription.cancel(sub_id)
+        except Exception as e:
+            logger.error(f"delete-account stripe cancel err {e}")
+    if user.get("discord_id"):
+        try:
+            await discord_set_role(user["discord_id"], False)
+        except Exception as e:
+            logger.error(f"delete-account discord revoke err {e}")
+    for coll in (db.trades, db.strategies, db.chat_messages, db.payments,
+                 db.broker_accounts, db.cash_adjustments):
+        try:
+            await coll.delete_many({"user_id": uid})
+        except Exception as e:
+            logger.error(f"delete-account purge err {e}")
+    await db.users.delete_one({"id": uid})
+    return {"ok": True}
+
 # ---------- Discord OAuth + role management ----------
 def _discord_configured() -> bool:
     return bool(DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET and DISCORD_BOT_TOKEN
