@@ -14,6 +14,8 @@ import { AuthProvider, useAuth } from "@/src/context/AuthContext";
 import { ToastProvider } from "@/src/context/ToastContext";
 import { AccentProvider } from "@/src/context/AccentContext";
 import { ModalQueueProvider } from "@/src/context/ModalQueue";
+import { ShareIntentProvider } from "@/src/context/ShareIntentContext";
+import ShareIntentHandler from "@/src/components/ShareIntentHandler";
 import { colors } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
@@ -92,8 +94,11 @@ export default function RootLayout() {
           <ToastProvider>
             <AccentProvider>
               <ModalQueueProvider>
-                <StatusBar style="light" />
-                <RootNavigator />
+                <ShareIntentProvider>
+                  <StatusBar style="light" />
+                  <RootNavigator />
+                  <ShareIntentHandler />
+                </ShareIntentProvider>
               </ModalQueueProvider>
             </AccentProvider>
           </ToastProvider>

@@ -1,10 +1,11 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { api } from "@/src/api";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import { colors, spacing, radius, font, fs, money, pnlColor } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
 import { GradeBadge, ScreenBackground } from "@/src/components/ui";
@@ -31,7 +32,7 @@ export default function Journal() {
     setLoading(false);
   }, [filter, tab]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoRefresh(load, 45000);
 
   const renderItem = ({ item, index }: { item: any; index: number }) => {
     const win = (item.pnl || 0) >= 0;

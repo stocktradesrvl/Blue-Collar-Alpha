@@ -1,5 +1,5 @@
-import React, { useCallback, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/context/ToastContext";
 import { useVoiceNote } from "@/src/hooks/useVoiceNote";
+import { useShareIntentContext } from "@/src/context/ShareIntentContext";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
@@ -29,7 +30,7 @@ export default function Coach() {
   const router = useRouter();
   const { user } = useAuth();
   const A = useAccent().theme;
-  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [messages, setMessages] = useState<{ role: string; content: string; image?: string }[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,6 +38,38 @@ export default function Coach() {
   const locked = user?.subscription_tier !== "premium";
   const toast = useToast();
   const voice = useVoiceNote(toast, false);
+  const { pending, clear } = useShareIntentContext();
+  const processingShare = useRef(false);
+
+  const analyzeShared = useCallback(async (base64: string) => {
+    processingShare.current = true;
+    setSuggestions([]);
+    let history: { role: string; content: string }[] = [];
+    try { history = await api.get("/coach/history"); } catch {}
+    const withUser = [...history, { role: "user", content: "📷 Shared a screenshot", image: `data:image/jpeg;base64,${base64}` }];
+    setMessages(withUser);
+    setBusy(true);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    try {
+      const r = await api.post("/coach/analyze-image", { image_base64: base64 });
+      setMessages([...withUser, { role: "assistant", content: r.reply }]);
+      setSuggestions(Array.isArray(r.suggestions) ? r.suggestions : []);
+    } catch (e: any) {
+      setMessages([...withUser, { role: "assistant", content: e.message || "Could not analyze that screenshot." }]);
+    } finally {
+      setBusy(false);
+      processingShare.current = false;
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pending?.base64) return;
+    if (locked) { clear(); toast("Sharing screenshots to Coach is a Premium feature.", "info"); return; }
+    const b64 = pending.base64;
+    clear();
+    analyzeShared(b64);
+  }, [pending, locked, clear, analyzeShared, toast]);
 
   const onMicPress = async () => {
     if (busy) return;
@@ -49,7 +82,7 @@ export default function Coach() {
   };
 
   const load = useCallback(async () => {
-    if (locked) return;
+    if (locked || processingShare.current) return;
     try { setMessages(await api.get("/coach/history")); } catch {}
   }, [locked]);
 
@@ -114,6 +147,7 @@ export default function Coach() {
         {messages.map((m, i) => (
           m.role === "user" ? (
             <LinearGradient key={i} colors={gradients.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.user]}>
+              {m.image ? <Image source={{ uri: m.image }} style={styles.sharedImg} resizeMode="cover" /> : null}
               <Text style={[styles.msgTxt, { color: colors.onBrand }]}>{m.content}</Text>
             </LinearGradient>
           ) : (
@@ -173,6 +207,7 @@ const styles = StyleSheet.create({
   user: { backgroundColor: colors.brand, alignSelf: "flex-end", borderBottomRightRadius: radius.sm },
   ai: { backgroundColor: colors.surface2, alignSelf: "flex-start", borderWidth: 1, borderColor: colors.borderStrong, borderBottomLeftRadius: radius.sm },
   msgTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, lineHeight: 22 },
+  sharedImg: { width: 200, height: 130, borderRadius: radius.md, marginBottom: spacing.sm, backgroundColor: colors.surface3 },
   followWrap: { marginTop: spacing.sm, marginBottom: spacing.md },
   followLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: spacing.sm },
   followRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },

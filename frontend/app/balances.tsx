@@ -1,9 +1,10 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, RefreshControl, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import { useToast } from "@/src/context/ToastContext";
 import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
@@ -38,7 +39,7 @@ export default function Balances() {
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoRefresh(load, 30000);
 
   const addBroker = async () => {
     const name = newName.trim();

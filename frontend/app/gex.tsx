@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Polyline, Line as SvgLine } from "react-native-svg";
 import { api } from "@/src/api";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import { colors, spacing, radius, font, fs } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
@@ -190,7 +191,7 @@ export default function Gex() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load, 20000);
 
   const onRefresh = () => { setRefreshing(true); load(); };
 

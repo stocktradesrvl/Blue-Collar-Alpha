@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Header
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Header, Query
 from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -1329,6 +1329,44 @@ async def coach_history(user=Depends(get_current_user)):
     msgs = await db.chat_messages.find({"user_id": user["id"]}).sort("created_at", 1).to_list(200)
     return [{"role": m["role"], "content": m["content"]} for m in msgs]
 
+class CoachImageIn(BaseModel):
+    image_base64: str
+    note: Optional[str] = ""
+
+@api.post("/coach/analyze-image")
+async def coach_analyze_image(inp: CoachImageIn, user=Depends(get_current_user)):
+    """Analyze a shared screenshot (chart/trade) and reply with coaching feedback,
+    saved into the coach thread so the trader can ask follow-ups."""
+    enforce_ai_limit(user)
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        raise HTTPException(status_code=402, detail="AI Coach is a Premium feature. Upgrade to unlock.")
+    note = (inp.note or "").strip()
+    system = ("You are the trader's personal AI trading coach. The trader shared a screenshot "
+              "(usually a price chart or a trade/broker screen). Read it and give specific, honest, "
+              "actionable coaching: what you see (setup, trend, key levels, entry/exit quality if visible), "
+              "what was done well, and what to improve next time. Be direct and encouraging. Under 160 words. "
+              "After your answer, on a NEW line output exactly 'FOLLOWUPS:' followed by 3 short follow-up "
+              "questions the trader would naturally ask next, separated by ' | ', each under 7 words.")
+    user_text = note or "Here's a screenshot from my trading — coach me on it."
+    await db.chat_messages.insert_one({"id": str(uuid.uuid4()), "user_id": user["id"], "role": "user",
+                                       "content": ("📷 Shared a screenshot" + (f" — {note}" if note else "")),
+                                       "created_at": datetime.now(timezone.utc).isoformat()})
+    chat = llm(system, f"coach-{user['id']}")
+    try:
+        resp = await chat.send_message(UserMessage(text=user_text, file_contents=[ImageContent(image_base64=inp.image_base64)]))
+    except Exception as e:
+        logger.error(f"coach image err {e}")
+        raise HTTPException(status_code=502, detail="Could not analyze the screenshot. Please try again.")
+    answer, suggestions = resp, []
+    if "FOLLOWUPS:" in resp:
+        answer, _, follow = resp.partition("FOLLOWUPS:")
+        answer = answer.strip()
+        suggestions = [s.strip(" -•*").strip() for s in follow.replace("\n", " ").split("|")]
+        suggestions = [s for s in suggestions if s and len(s) < 60][:3]
+    await db.chat_messages.insert_one({"id": str(uuid.uuid4()), "user_id": user["id"], "role": "assistant",
+                                       "content": answer, "created_at": datetime.now(timezone.utc).isoformat()})
+    return {"reply": answer, "suggestions": suggestions}
+
 # ---------- Stripe payments ----------
 class CheckoutIn(BaseModel):
     tier: str
@@ -1392,10 +1430,10 @@ async def create_checkout(inp: CheckoutIn, user=Depends(get_current_user)):
     return {"checkout_url": session.url, "session_id": session.id}
 
 @api.get("/payments/redirect", response_class=HTMLResponse)
-async def payment_redirect(rt: str, session_id: str = "", status: str = ""):
-    msg = "Payment cancelled." if status == "cancel" else "Payment complete."
+async def payment_redirect(rt: str, session_id: str = "", pay_status: str = Query("", alias="status")):
+    msg = "Payment cancelled." if pay_status == "cancel" else "Payment complete."
     return _safe_redirect_response(
-        rt, {"session_id": session_id, "status": status or "success"}, msg, accent="#FFB74D")
+        rt, {"session_id": session_id, "status": pay_status or "success"}, msg, accent="#FFB74D")
 
 @api.get("/payments/status")
 async def payment_status(session_id: str, user=Depends(get_current_user)):

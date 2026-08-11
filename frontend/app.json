@@ -23,6 +23,7 @@
         "backgroundColor": "#F1F5F8"
       },
       "edgeToEdgeEnabled": true,
+      "allowBackup": false,
       "package": "com.emergent.strategytracker.odqwcf",
       "permissions": [
         "CAMERA",
@@ -53,6 +54,17 @@
         "expo-audio",
         {
           "microphonePermission": "Record voice notes to journal your trades"
+        }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "androidIntentFilters": [
+            "image/*"
+          ],
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsImageWithMaxCount": 1
+          }
         }
       ]
     ],

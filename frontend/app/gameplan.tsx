@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import { colors, spacing, radius, font, fs } from "@/src/theme";
 import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
@@ -53,7 +54,7 @@ export default function GamePlan() {
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  React.useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load, 30000);
 
   const sections = parsePlan(plan?.game_plan || "");
 

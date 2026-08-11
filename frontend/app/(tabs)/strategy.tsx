@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -28,7 +28,7 @@ export default function Strategy() {
   const load = useCallback(async () => {
     try { setStrategies(await api.get("/strategies")); } catch {}
   }, []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoRefresh(load, 45000);
 
   const openNew = () => { setEditId(null); setName(""); setRisk("1"); setRules([""]); setEditing(true); };
   const openEdit = (s: any) => { setEditId(s.id); setName(s.name); setRisk(String(s.risk_pct)); setRules(s.rules.length ? s.rules : [""]); setEditing(true); };

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, useWindowDimensions, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -14,6 +14,7 @@ import { useAuth } from "@/src/context/AuthContext";
 import { StatCard, EquityCurve, GradientCard, ScreenBackground } from "@/src/components/ui";
 import ReconcileModal from "@/src/components/ReconcileModal";
 import { useModalSlot } from "@/src/context/ModalQueue";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import { PressableScale, CountUpText, PulseHalo } from "@/src/components/anim";
 import { playSound } from "@/src/utils/sound";
 import { storage } from "@/src/utils/storage";
@@ -92,7 +93,10 @@ export default function Dashboard() {
     try {
       const b = await api.get("/brokers");
       setBrokerAccts(b.accounts || []);
-      if (b.needs_reconcile && (b.accounts || []).length) setReconcileOpen(true);
+      if (b.needs_reconcile && (b.accounts || []).length && !reconcilePrompted.current) {
+        reconcilePrompted.current = true;
+        setReconcileOpen(true);
+      }
     } catch {}
     loadMistakes(mWindow);
     try { setGatedHits((await storage.getItem<number>("tm_gated_hits", 0)) || 0); } catch {}
@@ -108,7 +112,8 @@ export default function Dashboard() {
     setLoading(false);
   }, [mWindow, loadMistakes]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const reconcilePrompted = useRef(false);
+  useAutoRefresh(load, 30000);
   useFocusEffect(useCallback(() => {
     storage.getItem<string>(BACKDROP_KEY, "cash").then((v) => setBackdrop(v || "cash"));
   }, []));
@@ -122,7 +127,8 @@ export default function Dashboard() {
     setRefreshing(false);
   }, [load]);
 
-  const curve = stats?.equity_curve || [];
+  const baseBal = stats?.account_balance ?? (user?.account_balance || 0);
+  const curve = (stats?.equity_curve?.length ? stats.equity_curve : [baseBal, baseBal]);
   const shownCurve = range === "ALL" ? curve : curve.slice(-RANGES[range]);
 
   const topHabit = useMemo(() => {
@@ -139,6 +145,9 @@ export default function Dashboard() {
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.brand} size="large" /></View>;
 
   const empty = !stats || stats.total_trades === 0;
+  const s = stats || { total_trades: 0, total_pnl: 0, daily_pnl: 0, win_rate: 0, profit_factor: 0,
+    avg_winner: 0, avg_loser: 0, account_balance: user?.account_balance || 0, equity_curve: [],
+    best_setup: null, worst_setup: null, best_hour: null, worst_hour: null };
   const up = (stats?.total_pnl || 0) >= 0;
   const heroTint = empty ? "rgba(46,118,232,0.30)" : up ? "rgba(0,230,118,0.28)" : "rgba(255,61,0,0.28)";
 
@@ -235,34 +244,21 @@ export default function Dashboard() {
           </Animated.View>
         )}
 
-        {empty ? (
-          <>
-            <View style={styles.emptyBox}>
-              <Ionicons name="cloud-upload-outline" size={48} color={colors.brand} />
-              <Text style={styles.emptyTitle}>No trades yet</Text>
-              <Text style={styles.emptySub}>Upload a screenshot of your trade and let the AI coach analyze it.</Text>
-            </View>
-            <Animated.View entering={FadeInDown.duration(500).delay(200)} style={{ marginTop: spacing.lg }}>
-              <Pressable testID="analyze-chart-btn-empty" style={styles.chartBtn} onPress={() => router.push("/analyze")}>
-                <Ionicons name="analytics" size={20} color={colors.onSurface} />
-                <Text style={styles.chartBtnTxt}>Analyze a Chart Screenshot</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
-              </Pressable>
-              <Pressable testID="pretrade-btn-empty" style={styles.chartBtn} onPress={() => router.push("/pretrade")}>
-                <Ionicons name="ribbon" size={20} color={colors.onSurface} />
-                <Text style={styles.chartBtnTxt}>Grade a Potential Trade</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
-              </Pressable>
-            </Animated.View>
-            <View style={{ marginTop: spacing.md }}>{upgradeNudge}{gexTeaser}</View>
-          </>
-        ) : (
+        {empty && (
+          <Animated.View entering={FadeInDown.duration(500).delay(150)} style={styles.emptyBox}>
+            <Ionicons name="cloud-upload-outline" size={44} color={colors.brand} />
+            <Text style={styles.emptyTitle}>No trades yet</Text>
+            <Text style={styles.emptySub}>Upload your first trade to bring these stats to life. Everything below is ready to explore now.</Text>
+          </Animated.View>
+        )}
+
+        {(
           <>
             <Animated.View entering={FadeInDown.duration(700).delay(200)}>
             <GradientCard accent={colors.brand} style={styles.chartCard}>
               <View style={styles.chartHead}>
                 <Text style={styles.cardTitle}>Equity Curve</Text>
-                <Text style={[styles.totalPnl, { color: pnlColor(stats.total_pnl) }]}>{money(stats.total_pnl)}</Text>
+                <Text style={[styles.totalPnl, { color: pnlColor(s.total_pnl) }]}>{money(s.total_pnl)}</Text>
               </View>
               <EquityCurve data={shownCurve} replay={tick} width={width - spacing.lg * 2 - spacing.lg * 2} />
               <View style={styles.rangeRow}>
@@ -482,20 +478,20 @@ export default function Dashboard() {
             )}
 
             <Animated.View entering={FadeInDown.duration(400).delay(180)} style={styles.grid}>
-              <StatCard testID="stat-winrate" label="Win Rate" icon="trophy" value={`${stats.win_rate}%`} countTo={stats.win_rate} trigger={tick} format={(n) => `${n.toFixed(1)}%`} style={styles.half} valueColor={stats.win_rate >= 50 ? colors.success : colors.warning} />
-              <StatCard testID="stat-pf" label="Profit Factor" icon="trending-up" value={`${stats.profit_factor}`} countTo={stats.profit_factor} trigger={tick} format={(n) => n.toFixed(2)} style={styles.half} valueColor={stats.profit_factor >= 1 ? colors.success : colors.error} />
-              <StatCard testID="stat-winner" label="Avg Winner" icon="arrow-up-circle" value={money(stats.avg_winner)} countTo={stats.avg_winner} trigger={tick} format={money} style={styles.half} valueColor={colors.success} />
-              <StatCard testID="stat-loser" label="Avg Loser" icon="arrow-down-circle" value={money(stats.avg_loser)} countTo={stats.avg_loser} trigger={tick} format={money} style={styles.half} valueColor={colors.error} />
+              <StatCard testID="stat-winrate" label="Win Rate" icon="trophy" value={`${s.win_rate}%`} countTo={s.win_rate} trigger={tick} format={(n) => `${n.toFixed(1)}%`} style={styles.half} valueColor={s.win_rate >= 50 ? colors.success : colors.warning} />
+              <StatCard testID="stat-pf" label="Profit Factor" icon="trending-up" value={`${s.profit_factor}`} countTo={s.profit_factor} trigger={tick} format={(n) => n.toFixed(2)} style={styles.half} valueColor={s.profit_factor >= 1 ? colors.success : colors.error} />
+              <StatCard testID="stat-winner" label="Avg Winner" icon="arrow-up-circle" value={money(s.avg_winner)} countTo={s.avg_winner} trigger={tick} format={money} style={styles.half} valueColor={colors.success} />
+              <StatCard testID="stat-loser" label="Avg Loser" icon="arrow-down-circle" value={money(s.avg_loser)} countTo={s.avg_loser} trigger={tick} format={money} style={styles.half} valueColor={colors.error} />
             </Animated.View>
 
             <View style={styles.infoRow}>
               <View style={styles.infoCard}>
                 <Text style={styles.infoLabel}>Best Setup</Text>
-                <Text style={styles.infoVal} numberOfLines={1}>{stats.best_setup || "—"}</Text>
+                <Text style={styles.infoVal} numberOfLines={1}>{s.best_setup || "—"}</Text>
               </View>
               <View style={styles.infoCard}>
                 <Text style={styles.infoLabel}>Best Time</Text>
-                <Text style={styles.infoVal} numberOfLines={1}>{stats.best_hour || "—"}</Text>
+                <Text style={styles.infoVal} numberOfLines={1}>{s.best_hour || "—"}</Text>
               </View>
             </View>
           </>
