@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,6 +21,9 @@ export default function Journal() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("All");
   const [tab, setTab] = useState<"executed" | "missed">("executed");
+  const [closeTrade, setCloseTrade] = useState<any>(null);
+  const [pnlInput, setPnlInput] = useState("");
+  const [closing, setClosing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -34,9 +37,21 @@ export default function Journal() {
 
   useAutoRefresh(load, 45000);
 
+  const submitClose = async () => {
+    const pnl = parseFloat(pnlInput);
+    if (isNaN(pnl)) return;
+    setClosing(true);
+    try {
+      await api.put(`/trades/${closeTrade.id}/close`, { pnl });
+      setCloseTrade(null); setPnlInput("");
+      await load();
+    } catch {}
+    setClosing(false);
+  };
+
   const renderItem = ({ item, index }: { item: any; index: number }) => {
     const win = (item.pnl || 0) >= 0;
-    const tint = win ? colors.success : colors.error;
+    const tint = item.pending ? colors.warning : win ? colors.success : colors.error;
     return (
       <Animated.View entering={FadeInDown.duration(600).delay(Math.min(index, 8) * 70)}>
       <PressableScale testID={`trade-${item.id}`} style={[styles.row, { borderColor: tint + "33" }]} onPress={() => router.push(`/trade/${item.id}`)}>
@@ -49,11 +64,22 @@ export default function Journal() {
               </View>
               <Text style={styles.symbol}>{item.symbol}</Text>
             </View>
-            <Text style={[styles.pnl, { color: pnlColor(item.pnl) }]}>{money(item.pnl || 0)}</Text>
+            {item.pending ? (
+              <View style={styles.openPill}><Text style={styles.openPillTxt}>OPEN</Text></View>
+            ) : (
+              <Text style={[styles.pnl, { color: pnlColor(item.pnl) }]}>{money(item.pnl || 0)}</Text>
+            )}
           </View>
           <View style={styles.rowBottom}>
             <Text style={styles.setup} numberOfLines={1}>{item.detected_setup || item.strategy_name || item.asset_type} · {item.direction}</Text>
-            <GradeBadge grade={item.setup_grade || "C"} size={26} />
+            {item.pending ? (
+              <Pressable testID={`close-${item.id}`} style={[styles.closeBtn, { backgroundColor: A.accent }]} onPress={() => { setCloseTrade(item); setPnlInput(""); }}>
+                <Ionicons name="checkmark-done" size={14} color={A.onAccent} />
+                <Text style={[styles.closeBtnTxt, { color: A.onAccent }]}>Add outcome</Text>
+              </Pressable>
+            ) : (
+              <GradeBadge grade={item.setup_grade || "C"} size={26} />
+            )}
           </View>
         </View>
       </PressableScale>
@@ -100,6 +126,23 @@ export default function Journal() {
           ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
         />
       )}
+
+      <Modal visible={!!closeTrade} transparent animationType="fade" onRequestClose={() => setCloseTrade(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.mOverlay}>
+          <View style={styles.mCard}>
+            <Text style={styles.mTitle}>Close {closeTrade?.symbol}</Text>
+            <Text style={styles.mSub}>Enter the trade's realized profit or loss. Use a minus sign for a loss.</Text>
+            <TextInput testID="close-pnl" style={styles.mInput} value={pnlInput} onChangeText={setPnlInput}
+              placeholder="e.g. 250 or -120" placeholderTextColor={colors.onSurface3} keyboardType="numbers-and-punctuation" autoFocus />
+            <Pressable testID="close-save" style={[styles.mBtn, { backgroundColor: A.accent }]} onPress={submitClose} disabled={closing}>
+              {closing ? <ActivityIndicator color={A.onAccent} /> : <Text style={[styles.mBtnTxt, { color: A.onAccent }]}>Save Outcome</Text>}
+            </Pressable>
+            <Pressable testID="close-cancel" style={styles.mCancel} onPress={() => setCloseTrade(null)} disabled={closing}>
+              <Text style={styles.mCancelTxt}>Cancel</Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -130,4 +173,17 @@ const styles = StyleSheet.create({
   pnl: { fontFamily: font.displayBold, fontSize: fs.xl },
   rowBottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   setup: { flex: 1, color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, marginRight: spacing.md },
+  openPill: { backgroundColor: colors.warning + "22", borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 3 },
+  openPillTxt: { color: colors.warning, fontFamily: font.displayBold, fontSize: fs.sm, letterSpacing: 1 },
+  closeBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6 },
+  closeBtnTxt: { fontFamily: font.displayBold, fontSize: fs.sm },
+  mOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  mCard: { width: "100%", maxWidth: 400, backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.xl, gap: spacing.sm },
+  mTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
+  mSub: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base, marginBottom: spacing.sm, lineHeight: 19 },
+  mInput: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg },
+  mBtn: { borderRadius: radius.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.sm },
+  mBtnTxt: { fontFamily: font.displayBold, fontSize: fs.lg },
+  mCancel: { alignItems: "center", padding: spacing.sm },
+  mCancelTxt: { color: colors.onSurface2, fontFamily: font.display, fontSize: fs.base },
 });

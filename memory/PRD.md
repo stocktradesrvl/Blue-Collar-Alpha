@@ -147,3 +147,7 @@ Applied after a security audit; verified 24/24 backend tests (iter13_security).
 
 ## Coach markdown cleanup (2026-08 fork) — DONE:
 - Added CoachText component in coach.tsx: renders the coach's light markdown (## headings -> bold heading, **bold** -> bold spans, -/* bullets -> •) as clean text. Applied to assistant bubbles. Verified: no raw ## or ** in rendered chat.
+
+## Ideas Filter + Close The Trade (2026-08 fork) — DONE:
+- IDEAS FILTER: already satisfied by the Journal "Missed / Ideas" tab (taken=false); coach "idea" shares (taken=false) show there.
+- CLOSE THE TRADE: open/pending trades (pending=true, from "I took it" shares) show an OPEN pill + "Add outcome" button in the Journal Executed tab. New PUT /api/trades/{tid}/close {pnl} sets pnl, pending=false, taken=true (and fires win-to-Discord if profit). Close modal (numeric input) in journal.tsx. Stats now EXCLUDE pending trades (added `and not t.get("pending")` to all taken filters in _compute_stats/streak/emotion) so open trades don't skew win rate until closed. Verified: close endpoint (pnl set, pending cleared) + UI (OPEN pill, Add outcome, modal).

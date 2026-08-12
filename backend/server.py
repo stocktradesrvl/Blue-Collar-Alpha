@@ -686,7 +686,7 @@ async def _compute_leaderboard(window: int = 30, limit: int = 10) -> dict:
     rows = []
     for u in users:
         trades = await db.trades.find({"user_id": u["id"], "created_at": {"$gte": cutoff}}).to_list(1000)
-        ex = [t for t in trades if t.get("taken", True) is not False]
+        ex = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
         n = len(ex)
         if n < 3:
             continue
@@ -847,7 +847,20 @@ async def set_trade_taken(tid: str, inp: TakenIn, user=Depends(get_current_user)
     t = await db.trades.find_one({"id": tid})
     return clean_trade(t)
 
-# ---------- AI Trade Debrief ----------
+class CloseTradeIn(BaseModel):
+    pnl: float
+
+@api.put("/trades/{tid}/close")
+async def close_trade(tid: str, inp: CloseTradeIn, user=Depends(get_current_user)):
+    """Record the outcome of an open/pending trade so it counts toward stats."""
+    res = await db.trades.update_one({"id": tid, "user_id": user["id"]},
+        {"$set": {"pnl": round(inp.pnl, 2), "pending": False, "taken": True}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    t = await db.trades.find_one({"id": tid})
+    if t.get("pnl", 0) > 0:
+        asyncio.create_task(post_win_to_discord(user["id"], t))
+    return clean_trade(t)
 DEBRIEF_TAGS = ["FOMO", "Chased Entry", "No Stop", "Oversized", "Revenge Trade",
                 "Cut Winner Early", "Held Loser", "Overtraded", "Hesitated", "Good Discipline"]
 
@@ -1037,7 +1050,7 @@ async def delete_trade(tid: str, user=Depends(get_current_user)):
 async def _compute_stats(uid: str, balance: float) -> dict:
     all_trades = await db.trades.find({"user_id": uid}).sort("created_at", 1).to_list(1000)
     # Only executed trades count toward performance stats.
-    trades = [t for t in all_trades if t.get("taken", True) is not False]
+    trades = [t for t in all_trades if t.get("taken", True) is not False and not t.get("pending")]
     total = len(trades)
     if total == 0:
         return {"total_trades": 0, "total_pnl": 0, "daily_pnl": 0, "win_rate": 0,
@@ -1097,7 +1110,7 @@ async def weekly_recap(user=Depends(get_current_user)):
     week_ago = (now - timedelta(days=7)).isoformat()
     two_weeks = (now - timedelta(days=14)).isoformat()
     trades = await db.trades.find({"user_id": user["id"]}).to_list(2000)
-    taken = [t for t in trades if t.get("taken", True) is not False]
+    taken = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
 
     def bucket(start, end):
         return [t for t in taken if start <= t.get("created_at", "") < end]
@@ -1143,7 +1156,7 @@ async def _compute_weekly_summary(uid: str):
     week_ago = (now - timedelta(days=7)).isoformat()
     two_weeks = (now - timedelta(days=14)).isoformat()
     trades = await db.trades.find({"user_id": uid}).to_list(2000)
-    taken = [t for t in trades if t.get("taken", True) is not False]
+    taken = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
     this_week = [t for t in taken if week_ago <= t.get("created_at", "") < now.isoformat() + "z"]
     last_week = [t for t in taken if two_weeks <= t.get("created_at", "") < week_ago]
     if not this_week:
@@ -1760,7 +1773,7 @@ async def coach_game_plan(user=Depends(get_current_user)):
     if TIER_LEVEL.get(effective_tier(user), 0) < 2:
         raise HTTPException(status_code=402, detail="AI Game Plan is a Premium feature. Upgrade to unlock.")
     trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", -1).to_list(300)
-    taken = [t for t in trades if t.get("taken", True) is not False]
+    taken = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
     recent = taken[:60]
     tags = defaultdict(int)
     for t in recent:
@@ -1815,7 +1828,7 @@ async def emotion_insights(user=Depends(get_current_user)):
 @api.get("/insights/streak")
 async def rule_streak(user=Depends(get_current_user)):
     trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", -1).to_list(1000)
-    taken = [t for t in trades if t.get("taken", True) is not False]
+    taken = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
     current = 0
     for t in taken:
         if t.get("strategy_followed") is not False:
@@ -1853,7 +1866,7 @@ def _parse_hour(tt):
 @api.get("/dashboard/metrics")
 async def dashboard_metrics(user=Depends(get_current_user)):
     all_trades = await db.trades.find({"user_id": user["id"]}, {"image_base64": 0}).sort("created_at", 1).to_list(3000)
-    trades = [t for t in all_trades if t.get("taken", True) is not False]
+    trades = [t for t in all_trades if t.get("taken", True) is not False and not t.get("pending")]
     total = len(trades)
     if total == 0:
         return {"total_trades": 0, "has_data": False}
