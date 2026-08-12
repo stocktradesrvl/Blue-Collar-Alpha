@@ -1205,9 +1205,19 @@ async def _compute_weekly_summary(uid: str):
         setup_pnl[t.get("detected_setup") or "Unknown"] += t.get("pnl", 0)
     best_setup = max(setup_pnl, key=setup_pnl.get) if setup_pnl else None
     violations = sum(1 for t in this_week if not t.get("strategy_followed", True))
+    # Dominant mood from voice notes in the last 7 days + that mood's avg day P&L.
+    mood = None; mood_pnl = 0.0; mood_count = 0
+    vn = await db.voice_notes.find({"user_id": uid, "date": {"$gte": week_ago[:10]}}).to_list(500)
+    if vn:
+        from collections import Counter
+        mood = Counter(n["emotion"] for n in vn).most_common(1)[0][0]
+        dmap = await _day_pnl_map(uid)
+        mvals = [dmap.get(n.get("date", ""), 0) for n in vn if n["emotion"] == mood]
+        mood_count = len(mvals)
+        mood_pnl = sum(mvals) / mood_count if mood_count else 0.0
     return {"tw": tw, "lw": lw, "best_setup": best_setup,
             "best_setup_pnl": round(setup_pnl.get(best_setup, 0), 2) if best_setup else 0,
-            "violations": violations}
+            "violations": violations, "mood": mood, "mood_pnl": round(mood_pnl, 2), "mood_count": mood_count}
 
 def _digest_html(s: dict, unsub_url: str = "") -> str:
     tw = s["tw"]; lw = s["lw"]
@@ -1224,6 +1234,11 @@ def _digest_html(s: dict, unsub_url: str = "") -> str:
     viol_row = ""
     if s["violations"] > 0:
         viol_row = f"<tr><td style='padding:6px 0;color:#9CA3AF'>Rule breaks</td><td style='padding:6px 0;text-align:right;color:#F59E0B'><b>{s['violations']}</b></td></tr>"
+    mood_row = ""
+    if s.get("mood"):
+        mp = s.get("mood_pnl", 0)
+        mcol = "#22C55E" if mp >= 0 else "#EF4444"
+        mood_row = f"<tr><td style='padding:6px 0;color:#9CA3AF'>Dominant mood</td><td style='padding:6px 0;text-align:right;color:#E5E7EB'><b>{s['mood']}</b> <span style='color:{mcol}'>(avg ${mp:,.0f}/day)</span></td></tr>"
     return f"""<!DOCTYPE html><html><body style="margin:0;background:#0A0A0A;font-family:Arial,Helvetica,sans-serif;padding:24px">
 <div style="max-width:520px;margin:0 auto;background:#141414;border:1px solid #262626;border-radius:16px;overflow:hidden">
   <div style="background:linear-gradient(135deg,#1E3A8A,#2563EB);padding:24px 28px">
@@ -1242,6 +1257,7 @@ def _digest_html(s: dict, unsub_url: str = "") -> str:
       <tr><td style="padding:6px 0;color:#9CA3AF">Worst trade</td><td style="padding:6px 0;text-align:right;color:#EF4444"><b>${tw['worst']:,.0f}</b></td></tr>
       {setup_row}
       {viol_row}
+      {mood_row}
     </table>
     <p style="color:#6B7280;font-size:12px;margin-top:24px;line-height:1.5">Open the app for your full metrics, calendar and AI coach review. You're receiving this because weekly digests are on in your Blue Collar Alpha settings.</p>
     <p style="color:#4B5563;font-size:11px;margin-top:8px">{('<a href="' + unsub_url + '" style="color:#6B7280">Unsubscribe from weekly recaps</a>') if unsub_url else ''}</p>
@@ -1503,6 +1519,28 @@ async def emotion_voice_insights(user=Depends(get_current_user)):
             "best_emotion": by_emotion[0] if by_emotion else None,
             "worst_emotion": by_emotion[-1] if by_emotion else None, "recent": recent}
 
+@api.get("/coach/mood-nudge")
+async def coach_mood_nudge(user=Depends(get_current_user)):
+    """If the trader's most recent logged mood is one that historically loses them
+    money, surface a gentle heads-up in the Coach."""
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        return {"show": False}
+    latest = await db.voice_notes.find_one({"user_id": user["id"]}, sort=[("created_at", -1)])
+    if not latest:
+        return {"show": False}
+    emo = latest["emotion"]
+    notes = await db.voice_notes.find({"user_id": user["id"], "emotion": emo}).to_list(500)
+    day = await _day_pnl_map(user["id"])
+    vals = [day.get(n.get("date", ""), 0) for n in notes]
+    if len(vals) < 2:
+        return {"show": False, "emotion": emo}
+    avg = sum(vals) / len(vals)
+    if avg >= 0:
+        return {"show": False, "emotion": emo, "avg_pnl": round(avg, 2)}
+    amt = f"-${abs(avg):,.0f}"
+    return {"show": True, "emotion": emo, "count": len(vals), "avg_pnl": round(avg, 2),
+            "message": f"You logged feeling {emo.lower()} recently. On your {emo.lower()} days you've averaged {amt}. Slow down and trade your plan today."}
+
 @api.post("/coach/chat")
 async def coach_chat(inp: ChatIn, user=Depends(get_current_user)):
     enforce_ai_limit(user)
@@ -1625,6 +1663,7 @@ class CheckoutIn(BaseModel):
     tier: str
     origin: str
     return_url: str
+    offer: Optional[str] = None   # "trial" = keep-Premium conversion offer
 
 @api.post("/payments/create-checkout-session")
 async def create_checkout(inp: CheckoutIn, user=Depends(get_current_user)):
@@ -1634,11 +1673,13 @@ async def create_checkout(inp: CheckoutIn, user=Depends(get_current_user)):
     pkg = STRIPE_PACKAGES[tier]
     success_url = f"{inp.origin}/api/payments/redirect?rt={quote(inp.return_url)}&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{inp.origin}/api/payments/redirect?rt={quote(inp.return_url)}&status=cancel"
-    sub_data = {"trial_period_days": pkg["trial_days"]} if pkg["trial_days"] > 0 else {}
-    # Launch promo: first month discounted via a one-time coupon (amount_off).
+    # Trial converters already used their free days — don't grant another trial.
+    is_trial_offer = (inp.offer == "trial" and bool(user.get("trial_premium_until")))
+    sub_data = {} if is_trial_offer else ({"trial_period_days": pkg["trial_days"]} if pkg["trial_days"] > 0 else {})
+    # First-month discount: the launch promo OR a keep-Premium trial-conversion offer.
     discounts = []
     promo = pkg.get("promo_amount")
-    if promo_active() and promo and promo < pkg["amount"]:
+    if (promo_active() or is_trial_offer) and promo and promo < pkg["amount"]:
         off = pkg["amount"] - promo
         try:
             cid = _promo_coupons.get(off)
@@ -2063,13 +2104,15 @@ _HM_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _HM_SESSIONS = [("Open", 0, 10), ("Mid-AM", 10, 12), ("Midday", 12, 14), ("PM", 14, 16), ("Late", 16, 24)]
 
 @api.get("/insights/heatmap")
-async def pnl_heatmap(symbol: Optional[str] = None, strategy_id: Optional[str] = None, user=Depends(get_current_user)):
+async def pnl_heatmap(symbol: Optional[str] = None, strategy_id: Optional[str] = None,
+                      grade: Optional[str] = None, user=Depends(get_current_user)):
     """Aggregate realized P&L by weekday and trading session so the trader can see
-    WHEN they make and lose money. Optionally filter by symbol or strategy."""
+    WHEN they make and lose money. Optionally filter by symbol, strategy or grade."""
     trades = await db.trades.find({"user_id": user["id"]}).to_list(3000)
     taken = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
     # Filter options from the full set (before applying the active filter).
     symbols = sorted({(t.get("symbol") or "").upper() for t in taken if t.get("symbol")})
+    grades = sorted({t.get("setup_grade") for t in taken if t.get("setup_grade")})
     strat_map = {}
     for t in taken:
         for sid, sname in zip(t.get("strategy_ids", []) or [], t.get("strategy_names", []) or []):
@@ -2080,6 +2123,8 @@ async def pnl_heatmap(symbol: Optional[str] = None, strategy_id: Optional[str] =
         taken = [t for t in taken if (t.get("symbol") or "").upper() == symbol.upper()]
     if strategy_id:
         taken = [t for t in taken if strategy_id in (t.get("strategy_ids") or [])]
+    if grade:
+        taken = [t for t in taken if t.get("setup_grade") == grade]
 
     day_agg = [{"pnl": 0.0, "trades": 0, "wins": 0} for _ in range(7)]
     sess_agg = [{"pnl": 0.0, "trades": 0, "wins": 0} for _ in _HM_SESSIONS]
@@ -2129,11 +2174,13 @@ async def pnl_heatmap(symbol: Optional[str] = None, strategy_id: Optional[str] =
             "session_stats": session_stats, "grid": grid_out,
             "best_day": best_day, "worst_day": worst_day, "best_session": best_session,
             "symbols": symbols, "strategies": strategies_opt,
-            "filter": {"symbol": symbol, "strategy_id": strategy_id}}
+            "grades": grades,
+            "filter": {"symbol": symbol, "strategy_id": strategy_id, "grade": grade}}
 
 @api.get("/insights/heatmap/trades")
 async def heatmap_trades(day: str, session: str, symbol: Optional[str] = None,
-                         strategy_id: Optional[str] = None, user=Depends(get_current_user)):
+                         strategy_id: Optional[str] = None, grade: Optional[str] = None,
+                         user=Depends(get_current_user)):
     """The executed trades behind one heatmap cell (weekday × session), for drill-down."""
     di = _HM_DAYS.index(day) if day in _HM_DAYS else None
     sess = next((s for s in _HM_SESSIONS if s[0] == session), None)
@@ -2145,6 +2192,8 @@ async def heatmap_trades(day: str, session: str, symbol: Optional[str] = None,
         taken = [t for t in taken if (t.get("symbol") or "").upper() == symbol.upper()]
     if strategy_id:
         taken = [t for t in taken if strategy_id in (t.get("strategy_ids") or [])]
+    if grade:
+        taken = [t for t in taken if t.get("setup_grade") == grade]
     out = []
     for t in taken:
         ca = (t.get("created_at") or "").replace("Z", "").replace("z", "")

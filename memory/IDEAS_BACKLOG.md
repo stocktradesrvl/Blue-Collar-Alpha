@@ -11,7 +11,7 @@
 ### Discord (bot now live)
 - [>] !wins command + scheduled WEEKLY leaderboard auto-post to a channel (hands-free engagement)
 - [x] !gex command — members pull current SPY/SPX/XSP regime + walls from the bot (needs Message Content Intent enabled)
-- [>] Streak/milestone shout-outs auto-posted (e.g., "🔥 Trader-4F2A: 5 green days")
+- [ ] Streak/milestone shout-outs auto-posted (user deprioritized streak nudges)
 ### GEX / Options
 - [>] Per-expiry ingest → 0DTE vs multi-expiry toggle (needs Pi per-expiry breakdown first)
 - [>] Intraday flip-cross PUSH alert (spot crosses gamma flip) — back-testable via scorecard

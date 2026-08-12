@@ -29,13 +29,15 @@ export default function Heatmap() {
   const [cellLoading, setCellLoading] = useState(false);
   const [fSymbol, setFSymbol] = useState<string | null>(null);
   const [fStrategy, setFStrategy] = useState<string | null>(null);
+  const [fGrade, setFGrade] = useState<string | null>(null);
 
   const qs = useCallback(() => {
     const p: string[] = [];
     if (fSymbol) p.push(`symbol=${encodeURIComponent(fSymbol)}`);
     if (fStrategy) p.push(`strategy_id=${encodeURIComponent(fStrategy)}`);
+    if (fGrade) p.push(`grade=${encodeURIComponent(fGrade)}`);
     return p.length ? `?${p.join("&")}` : "";
-  }, [fSymbol, fStrategy]);
+  }, [fSymbol, fStrategy, fGrade]);
 
   const load = useCallback(async () => {
     try { setData(await api.get(`/insights/heatmap${qs()}`)); } catch {}
@@ -49,7 +51,7 @@ export default function Heatmap() {
     setCellLoading(false);
   }, [qs]);
 
-  useEffect(() => { load(); }, [fSymbol, fStrategy]);  // reload when a filter changes
+  useEffect(() => { load(); }, [fSymbol, fStrategy, fGrade]);  // reload when a filter changes
 
   const days: string[] = data?.days || [];
   const grid: any[] = data?.grid || [];
@@ -81,6 +83,21 @@ export default function Heatmap() {
               ...data.strategies.map((st: any) => chip(`strat-${st.id}`, st.name, fStrategy === st.id, () => { setFSymbol(null); setFStrategy(fStrategy === st.id ? null : st.id); })),
             ];
           })()}
+        </ScrollView>
+      )}
+
+      {data && data.grades?.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar} contentContainerStyle={styles.filterBarContent}>
+          <Text style={styles.filterLabel}>Grade</Text>
+          <Pressable testID="grade-all" onPress={() => setFGrade(null)} style={[styles.chip, !fGrade && { backgroundColor: A.accent, borderColor: A.accent }]}>
+            <Text style={[styles.chipTxt, !fGrade && { color: A.onAccent }]}>All</Text>
+          </Pressable>
+          {data.grades.map((g: string) => (
+            <Pressable key={g} testID={`grade-${g}`} onPress={() => setFGrade(fGrade === g ? null : g)}
+              style={[styles.chip, { minWidth: 44 }, fGrade === g && { backgroundColor: GRADE_COLORS[g] || A.accent, borderColor: GRADE_COLORS[g] || A.accent }]}>
+              <Text style={[styles.chipTxt, fGrade === g && { color: "#04210F" }]}>{g}</Text>
+            </Pressable>
+          ))}
         </ScrollView>
       )}
 
@@ -209,6 +226,7 @@ const styles = StyleSheet.create({
   title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
   filterBar: { maxHeight: 52, flexGrow: 0 },
   filterBarContent: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm, alignItems: "center" },
+  filterLabel: { color: colors.onSurface3, fontFamily: font.displayBold, fontSize: fs.sm, marginRight: 2 },
   chip: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, maxWidth: 160 },
   chipTxt: { color: colors.onSurface2, fontFamily: font.displayBold, fontSize: fs.sm },
   empty: { alignItems: "center", padding: spacing.xxl, gap: spacing.md },

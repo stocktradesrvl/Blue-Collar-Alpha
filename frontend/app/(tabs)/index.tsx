@@ -18,6 +18,8 @@ import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import { PressableScale, CountUpText, PulseHalo } from "@/src/components/anim";
 import { playSound } from "@/src/utils/sound";
 import { storage } from "@/src/utils/storage";
+import { startCheckout } from "@/src/utils/checkout";
+import { useToast } from "@/src/context/ToastContext";
 import { BACKDROP_KEY, backdropSource } from "@/src/appearance";
 
 const RANGES: Record<string, number> = { "1W": 8, "1M": 31, ALL: 9999 };
@@ -57,6 +59,7 @@ export default function Dashboard() {
   const { width } = useWindowDimensions();
   const A = useAccent().theme;
   const { user, refresh } = useAuth();
+  const toast = useToast();
   const [stats, setStats] = useState<any>(null);
   const [trial, setTrial] = useState<{ days: number } | null>(null);
   const [annualUp, setAnnualUp] = useState<any>(null);
@@ -174,6 +177,14 @@ export default function Dashboard() {
     try { await storage.setItem("bca_annual_upsell_snooze", Date.now() + 14 * 86400000); } catch {}
   }, []);
 
+  const keepPremium = useCallback(async () => {
+    try {
+      const { paid } = await startCheckout("premium", "trial");
+      if (paid) { await refresh(); await load(); toast("You're on Premium — welcome!", "success"); }
+      else toast("Checkout wasn't completed.", "info");
+    } catch (e: any) { toast(e?.message || "Checkout failed", "error"); }
+  }, [refresh, load, toast]);
+
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.brand} size="large" /></View>;
 
   const empty = !stats || stats.total_trades === 0;
@@ -239,15 +250,28 @@ export default function Dashboard() {
         )}
         {trialCountdown !== null && (
           <Animated.View entering={FadeInDown.duration(400)}>
-            <Pressable testID="trial-countdown" style={[styles.trialCountdown, { borderColor: A.accent + "66" }]} onPress={() => router.push("/(tabs)/profile")}>
-              <Ionicons name="sparkles" size={18} color={A.accent} />
-              <Text style={styles.trialCountdownTxt}>
-                {trialCountdown === 0 ? "Premium trial ends today" : `${trialCountdown} day${trialCountdown === 1 ? "" : "s"} of Premium left`}
-              </Text>
-              <View style={[styles.trialKeepBtn, { backgroundColor: A.accent }]}>
-                <Text style={[styles.trialKeepTxt, { color: A.onAccent }]}>Keep Premium</Text>
-              </View>
-            </Pressable>
+            {trialCountdown <= 2 ? (
+              <Pressable testID="keep-premium-offer" style={[styles.keepOffer, { borderColor: A.accent }]} onPress={keepPremium}>
+                <View style={styles.keepOfferTop}>
+                  <Ionicons name="flame" size={18} color={A.accent} />
+                  <Text style={styles.keepOfferTitle}>
+                    {trialCountdown === 0 ? "Your Premium trial ends today" : `Trial ends in ${trialCountdown} day${trialCountdown === 1 ? "" : "s"}`}
+                  </Text>
+                </View>
+                <Text style={styles.keepOfferSub}>Lock in Premium now and get 20% off your first month.</Text>
+                <View style={[styles.trialCtaBtn, { backgroundColor: A.accent }]}>
+                  <Text style={[styles.trialCtaBtnTxt, { color: A.onAccent }]}>Keep Premium — 20% off 1st month</Text>
+                </View>
+              </Pressable>
+            ) : (
+              <Pressable testID="trial-countdown" style={[styles.trialCountdown, { borderColor: A.accent + "66" }]} onPress={() => router.push("/(tabs)/profile")}>
+                <Ionicons name="sparkles" size={18} color={A.accent} />
+                <Text style={styles.trialCountdownTxt}>{`${trialCountdown} days of Premium left`}</Text>
+                <View style={[styles.trialKeepBtn, { backgroundColor: A.accent }]}>
+                  <Text style={[styles.trialKeepTxt, { color: A.onAccent }]}>Keep Premium</Text>
+                </View>
+              </Pressable>
+            )}
           </Animated.View>
         )}
         {user?.subscription_tier === "free" && !user?.trial_used && (
@@ -615,6 +639,10 @@ const styles = StyleSheet.create({
   trialCountdownTxt: { flex: 1, color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base },
   trialKeepBtn: { borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6 },
   trialKeepTxt: { fontFamily: font.displayBold, fontSize: fs.sm },
+  keepOffer: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.lg, gap: spacing.sm },
+  keepOfferTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  keepOfferTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.lg },
+  keepOfferSub: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, lineHeight: 17 },
   trialCtaTop: { flexDirection: "row", gap: spacing.md, alignItems: "center" },
   trialCtaIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   trialCtaTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.lg },

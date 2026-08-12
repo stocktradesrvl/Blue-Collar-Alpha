@@ -77,6 +77,8 @@ export default function Coach() {
   const [remember, setRemember] = useState(false);
   const [savingTrade, setSavingTrade] = useState(false);
   const [sharePref, setSharePref] = useState<string>("ask");
+  const [moodNudge, setMoodNudge] = useState<any>(null);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   useEffect(() => { storage.getItem<string>(SHARE_PREF_KEY, "ask").then((v) => setSharePref(v || "ask")); }, [askTrade, savingTrade]);
 
@@ -157,6 +159,7 @@ export default function Coach() {
   const load = useCallback(async () => {
     if (locked || processingShare.current) return;
     try { setMessages(await api.get("/coach/history")); } catch {}
+    try { const n = await api.get("/coach/mood-nudge"); setMoodNudge(n?.show ? n : null); } catch {}
   }, [locked]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -212,6 +215,15 @@ export default function Coach() {
         )}
       </View>
       <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}>
+        {moodNudge && !nudgeDismissed && (
+          <View testID="mood-nudge" style={styles.nudge}>
+            <Ionicons name="alert-circle" size={20} color={colors.warning} />
+            <Text style={styles.nudgeTxt}>{moodNudge.message}</Text>
+            <Pressable testID="mood-nudge-dismiss" onPress={() => setNudgeDismissed(true)} hitSlop={8}>
+              <Ionicons name="close" size={16} color={colors.onSurface3} />
+            </Pressable>
+          </View>
+        )}
         {messages.length === 0 && (
           <View style={styles.greet}>
             <Text style={styles.greetTxt}>{"How was today's session? Ask me anything about your trading."}</Text>
@@ -312,6 +324,8 @@ const styles = StyleSheet.create({
   title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs["3xl"] },
   subtitle: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
   greet: { marginTop: spacing.md },
+  nudge: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.warning + "1A", borderRadius: radius.md, borderWidth: 1, borderColor: colors.warning + "55", padding: spacing.md, marginBottom: spacing.md },
+  nudgeTxt: { flex: 1, color: colors.onSurface, fontFamily: font.text, fontSize: fs.base, lineHeight: 18 },
   greetTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.lg, marginBottom: spacing.lg },
   sugWrap: { gap: spacing.sm },
   sug: { backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
