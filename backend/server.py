@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, json, uuid, re, httpx, hashlib, asyncio, base64, tempfile, hmac, html as _html, time
+import os, logging, json, uuid, re, httpx, hashlib, asyncio, base64, tempfile, hmac, html as _html, time, secrets
 from pathlib import Path
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
@@ -114,10 +114,10 @@ def _safe_redirect_response(rt: str, params: dict, ok_msg: str, accent: str = "#
 
 
 STRIPE_PACKAGES = {
-    "pro": {"name": "Blue Collar Alpha Pro", "amount": 1799, "promo_amount": 999, "trial_days": 0, "interval": "month", "base": "pro"},
-    "premium": {"name": "Blue Collar Alpha Premium", "amount": 2899, "promo_amount": 1499, "trial_days": 7, "interval": "month", "base": "premium"},
-    "pro_annual": {"name": "Blue Collar Alpha Pro (Annual)", "amount": 17990, "trial_days": 0, "interval": "year", "base": "pro"},
-    "premium_annual": {"name": "Blue Collar Alpha Premium (Annual)", "amount": 28990, "trial_days": 7, "interval": "year", "base": "premium"},
+    "pro": {"name": "Blue Collar Alpha Pro", "amount": 1499, "promo_amount": 999, "trial_days": 0, "interval": "month", "base": "pro"},
+    "premium": {"name": "Blue Collar Alpha Premium", "amount": 2499, "promo_amount": 1999, "trial_days": 7, "interval": "month", "base": "premium"},
+    "pro_annual": {"name": "Blue Collar Alpha Pro (Annual)", "amount": 16489, "trial_days": 0, "interval": "year", "base": "pro"},
+    "premium_annual": {"name": "Blue Collar Alpha Premium (Annual)", "amount": 27489, "trial_days": 7, "interval": "year", "base": "premium"},
 }
 _promo_coupons: dict = {}  # cache: off_cents -> coupon id
 ALGO = "HS256"
@@ -337,6 +337,59 @@ async def change_password(inp: ChangePasswordIn, user=Depends(get_current_user))
     if inp.current_password == inp.new_password:
         raise HTTPException(status_code=400, detail="New password must be different from current")
     await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_pw(inp.new_password)}})
+    return {"ok": True}
+
+# ---------- Forgot / reset password (opaque single-use code, emailed via Resend) ----------
+class ResetRequestIn(BaseModel):
+    email: EmailStr
+
+class ResetConfirmIn(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+
+def _code_digest(email: str, code: str) -> str:
+    return hashlib.sha256(f"{email.lower()}:{code.upper()}".encode()).hexdigest()
+
+@api.post("/auth/password-reset/request", status_code=202)
+async def password_reset_request(inp: ResetRequestIn, request: Request):
+    # Rate-limit by IP to prevent abuse; always return the same response (no enumeration).
+    if not _rate_ok(f"pwreset:{_client_ip(request)}", 10, 900):
+        raise HTTPException(status_code=429, detail="Too many requests. Please wait a few minutes.")
+    email = inp.email.lower().strip()
+    generic = {"message": "If an account exists for that email, a reset code has been sent."}
+    user = await db.users.find_one({"email": email})
+    if not user or not (RESEND_API_KEY and RESEND_FROM_EMAIL):
+        return generic
+    code = "".join(secrets.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(6))
+    await db.password_resets.delete_many({"user_id": user["id"]})
+    await db.password_resets.insert_one({
+        "user_id": user["id"], "email": email, "code_hash": _code_digest(email, code),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=20)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()})
+    try:
+        resend.Emails.send({
+            "from": RESEND_FROM_EMAIL, "to": [email],
+            "subject": "Your Blue Collar Alpha password reset code",
+            "html": (f"<p>Your password reset code is:</p>"
+                     f"<p style='font-size:28px;font-weight:bold;letter-spacing:4px'>{code}</p>"
+                     f"<p>Enter it in the app to set a new password. It expires in 20 minutes.</p>"
+                     f"<p>If you didn't request this, you can ignore this email.</p>")})
+    except Exception as e:
+        logger.error(f"password reset email err {e}")
+    return generic
+
+@api.post("/auth/password-reset/confirm")
+async def password_reset_confirm(inp: ResetConfirmIn):
+    if len(inp.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    email = inp.email.lower().strip()
+    rec = await db.password_resets.find_one_and_delete({
+        "email": email, "code_hash": _code_digest(email, inp.code.strip()),
+        "expires_at": {"$gt": datetime.now(timezone.utc).isoformat()}})
+    if not rec:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code")
+    await db.users.update_one({"id": rec["user_id"]}, {"$set": {"password_hash": hash_pw(inp.new_password)}})
     return {"ok": True}
 
 @api.post("/user/balance")

@@ -52,6 +52,9 @@ export default function Login() {
             <Pressable testID="login-submit" style={styles.btn} onPress={submit} disabled={busy}>
               {busy ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.btnTxt}>Log In</Text>}
             </Pressable>
+            <Pressable testID="go-forgot" onPress={() => router.push("/(auth)/forgot-password")} style={styles.forgotWrap}>
+              <Text style={styles.linkBold}>Forgot password?</Text>
+            </Pressable>
             <Pressable testID="go-register" onPress={() => router.push("/(auth)/register")} style={styles.linkWrap}>
               <Text style={styles.link}>New here? <Text style={styles.linkBold}>Create an account</Text></Text>
             </Pressable>
@@ -79,6 +82,7 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: colors.brand, borderRadius: radius.md, paddingVertical: spacing.lg, alignItems: "center", marginTop: spacing.xl },
   btnTxt: { color: colors.onBrand, fontFamily: font.displayBold, fontSize: fs.lg, letterSpacing: 0.5 },
   linkWrap: { alignItems: "center", marginTop: spacing.xl },
+  forgotWrap: { alignItems: "center", marginTop: spacing.md },
   link: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.base },
   linkBold: { color: colors.brand, fontFamily: font.text },
 });

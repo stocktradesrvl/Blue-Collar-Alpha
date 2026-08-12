@@ -19,8 +19,8 @@ import { BACKDROP_KEY, BACKDROPS } from "@/src/appearance";
 
 const PLANS = [
   { tier: "free", name: "Free", price: "$0", annualPrice: "$0", promo: "", features: ["20 trades / month", "Trade screenshot analysis", "P&L & win-rate stats"] },
-  { tier: "pro", name: "Pro", price: "$17.99/mo", annualPrice: "$179.90/yr", promo: "🎉 First month just $9.99", features: ["Unlimited trades", "Chart screenshot analysis", "Setup grading A–F", "Strategy rule checks", "Pre-Trade Grader"] },
-  { tier: "premium", name: "Premium", price: "$28.99/mo", annualPrice: "$289.90/yr", promo: "🎉 7-day free trial, then $14.99 first month", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
+  { tier: "pro", name: "Pro", price: "$14.99/mo", annualPrice: "$164.89/yr", promo: "🎉 First month just $9.99", features: ["Unlimited trades", "Chart screenshot analysis", "Setup grading A–F", "Strategy rule checks", "Pre-Trade Grader"] },
+  { tier: "premium", name: "Premium", price: "$24.99/mo", annualPrice: "$274.89/yr", promo: "🎉 7-day free trial, then $19.99 first month", features: ["Everything in Pro", "AI Coach chat", "Daily session reports", "Behavioral insights"] },
 ];
 
 export default function Profile() {
