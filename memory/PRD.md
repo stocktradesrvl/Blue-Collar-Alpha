@@ -135,3 +135,12 @@ Applied after a security audit; verified 24/24 backend tests (iter13_security).
 
 ## STILL TODO (confirmed, next build): Coach share-flow
 - When a screenshot is shared to Coach: Coach analyzes, then asks "Did you take this trade?" with 3 options: (a) I took it -> save as EXECUTED trade, status OPEN/PENDING (user fills outcome/P&L later), (b) Just an idea -> save as idea (taken=false) in Journal, and ASK EACH TIME whether to also run Pre-Trade Grader, (c) Just coach me (don't save). Add a Profile setting to REMEMBER the default choice (took-it vs idea vs ask). Ideas live in the Journal (taken=false filter).
+
+## Coach share-flow (2026-08 fork) — DONE:
+- After a screenshot is shared to Coach and analyzed, Coach asks "Did you take this trade?" with 3 actions:
+  * shared-took -> POST /api/trades/analyze-screenshot {taken:true, pending:true} = executed OPEN trade (fill P&L later). ScreenshotIn now has `pending: bool=False`; trade doc stores `pending`.
+  * shared-idea -> POST /api/trades/analyze-screenshot {taken:false} = idea in Journal; then Alert asks EACH TIME "Grade this setup?" -> optional POST /api/analyze/pretrade.
+  * shared-skip -> coach only, no save.
+- "Remember my choice" checkbox persists default to AsyncStorage key bca_share_default ("took"|"idea"|"ask"); when set, future shares auto-save without prompting. Header shows a resettable chip ("Shared shots auto-save as trades/ideas · Reset") to clear back to ask. All in app/(tabs)/coach.tsx.
+- Verified: both save paths (took->taken/pending true, idea->taken false) via API; coach screen bundles/renders. Native share-sheet trigger requires a build (not testable in preview).
+- Minor known cosmetic: coach image-analysis reply contains markdown (##/**), rendered literally in the chat bubble.

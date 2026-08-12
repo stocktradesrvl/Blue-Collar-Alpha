@@ -241,6 +241,7 @@ class ScreenshotIn(BaseModel):
     strategy_id: Optional[str] = None
     strategy_ids: Optional[List[str]] = None
     taken: bool = True
+    pending: bool = False
 
 class PreTradeIn(BaseModel):
     image_base64: str
@@ -825,6 +826,7 @@ async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
         "ai_summary": sstr(data.get("ai_summary")),
         "advanced": advanced,
         "taken": inp.taken,
+        "pending": inp.pending,
         "strategy_ids": [s["id"] for s in strategies],
         "strategy_names": [s["name"] for s in strategies],
         "strategy_id": strategies[0]["id"] if strategies else None,

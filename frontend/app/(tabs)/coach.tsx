@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Image } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +9,10 @@ import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/context/ToastContext";
 import { useVoiceNote } from "@/src/hooks/useVoiceNote";
 import { useShareIntentContext } from "@/src/context/ShareIntentContext";
+import { storage } from "@/src/utils/storage";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
+
+const SHARE_PREF_KEY = "bca_share_default"; // "ask" | "took" | "idea"
 import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
 
@@ -40,10 +43,44 @@ export default function Coach() {
   const voice = useVoiceNote(toast, false);
   const { pending, clear } = useShareIntentContext();
   const processingShare = useRef(false);
+  const [sharedB64, setSharedB64] = useState<string | null>(null);
+  const [askTrade, setAskTrade] = useState(false);
+  const [remember, setRemember] = useState(false);
+  const [savingTrade, setSavingTrade] = useState(false);
+  const [sharePref, setSharePref] = useState<string>("ask");
+
+  useEffect(() => { storage.getItem<string>(SHARE_PREF_KEY, "ask").then((v) => setSharePref(v || "ask")); }, [askTrade, savingTrade]);
+
+  const saveShared = useCallback(async (kind: "took" | "idea", b64: string, rememberChoice: boolean) => {
+    setAskTrade(false);
+    if (rememberChoice) { try { await storage.setItem(SHARE_PREF_KEY, kind); } catch {} }
+    setSavingTrade(true);
+    try {
+      if (kind === "took") {
+        await api.post("/trades/analyze-screenshot", { image_base64: b64, taken: true, pending: true });
+        toast("Saved to your Journal as an open trade — add the outcome when it closes.", "success");
+      } else {
+        await api.post("/trades/analyze-screenshot", { image_base64: b64, taken: false });
+        toast("Saved as a trade idea in your Journal.", "success");
+        Alert.alert("Grade this setup?", "Want the AI to grade this idea (A–F) before you take it?", [
+          { text: "Not now", style: "cancel" },
+          { text: "Grade it", onPress: async () => {
+              try { await api.post("/analyze/pretrade", { image_base64: b64 }); toast("Setup graded — see the Pre-Trade Grader.", "success"); }
+              catch (e: any) { toast(e.message || "Could not grade setup", "error"); }
+          } },
+        ]);
+      }
+    } catch (e: any) {
+      toast(e.message || "Could not save", "error");
+    } finally {
+      setSavingTrade(false);
+      setSharedB64(null);
+    }
+  }, [toast]);
 
   const analyzeShared = useCallback(async (base64: string) => {
     processingShare.current = true;
-    setSuggestions([]);
+    setSuggestions([]); setAskTrade(false); setRemember(false);
     let history: { role: string; content: string }[] = [];
     try { history = await api.get("/coach/history"); } catch {}
     const withUser = [...history, { role: "user", content: "📷 Shared a screenshot", image: `data:image/jpeg;base64,${base64}` }];
@@ -54,6 +91,13 @@ export default function Coach() {
       const r = await api.post("/coach/analyze-image", { image_base64: base64 });
       setMessages([...withUser, { role: "assistant", content: r.reply }]);
       setSuggestions(Array.isArray(r.suggestions) ? r.suggestions : []);
+      const pref = await storage.getItem<string>(SHARE_PREF_KEY, "ask");
+      if (pref === "took" || pref === "idea") {
+        saveShared(pref, base64, false);
+      } else {
+        setSharedB64(base64);
+        setAskTrade(true);
+      }
     } catch (e: any) {
       setMessages([...withUser, { role: "assistant", content: e.message || "Could not analyze that screenshot." }]);
     } finally {
@@ -61,7 +105,7 @@ export default function Coach() {
       processingShare.current = false;
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     }
-  }, []);
+  }, [saveShared]);
 
   useEffect(() => {
     if (!pending?.base64) return;
@@ -130,6 +174,13 @@ export default function Coach() {
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Text style={styles.title}>AI Coach</Text>
         <Text style={styles.subtitle}>Answers from your own trades</Text>
+        {sharePref !== "ask" && (
+          <Pressable testID="share-pref-reset" style={styles.prefChip}
+            onPress={async () => { await storage.setItem(SHARE_PREF_KEY, "ask"); setSharePref("ask"); toast("Shared screenshots will ask again.", "success"); }}>
+            <Ionicons name="sync-outline" size={13} color={colors.onSurface3} />
+            <Text style={styles.prefChipTxt}>Shared shots auto-save as {sharePref === "took" ? "trades" : "ideas"} · Reset</Text>
+          </Pressable>
+        )}
       </View>
       <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}>
         {messages.length === 0 && (
@@ -158,6 +209,30 @@ export default function Coach() {
           )
         ))}
         {busy && <View style={[styles.bubble, styles.ai]}><ActivityIndicator color={colors.brand} /></View>}
+        {askTrade && !busy && (
+          <View style={styles.tradePrompt}>
+            <Text style={styles.tradePromptQ}>Did you take this trade?</Text>
+            {savingTrade ? <ActivityIndicator color={A.accent} style={{ marginVertical: spacing.md }} /> : (
+              <>
+                <Pressable testID="shared-took" style={[styles.tradeBtn, { backgroundColor: A.accent }]} onPress={() => sharedB64 && saveShared("took", sharedB64, remember)}>
+                  <Ionicons name="checkmark-circle" size={18} color={A.onAccent} />
+                  <Text style={[styles.tradeBtnTxt, { color: A.onAccent }]}>Yes — I took it</Text>
+                </Pressable>
+                <Pressable testID="shared-idea" style={styles.tradeBtnAlt} onPress={() => sharedB64 && saveShared("idea", sharedB64, remember)}>
+                  <Ionicons name="bulb-outline" size={18} color={colors.onSurface} />
+                  <Text style={styles.tradeBtnAltTxt}>No — it's just an idea</Text>
+                </Pressable>
+                <Pressable testID="shared-skip" style={styles.tradeSkip} onPress={() => { setAskTrade(false); setSharedB64(null); }}>
+                  <Text style={styles.tradeSkipTxt}>Just coach me — don't save</Text>
+                </Pressable>
+                <Pressable testID="shared-remember" style={styles.rememberRow} onPress={() => setRemember((v) => !v)}>
+                  <Ionicons name={remember ? "checkbox" : "square-outline"} size={18} color={remember ? A.accent : colors.onSurface3} />
+                  <Text style={styles.rememberTxt}>Remember my choice (change anytime in Coach)</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        )}
         {!busy && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
           <View style={styles.followWrap}>
             <Text style={styles.followLabel}>Follow up</Text>
@@ -208,6 +283,18 @@ const styles = StyleSheet.create({
   ai: { backgroundColor: colors.surface2, alignSelf: "flex-start", borderWidth: 1, borderColor: colors.borderStrong, borderBottomLeftRadius: radius.sm },
   msgTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, lineHeight: 22 },
   sharedImg: { width: 200, height: 130, borderRadius: radius.md, marginBottom: spacing.sm, backgroundColor: colors.surface3 },
+  tradePrompt: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginTop: spacing.sm, gap: spacing.sm },
+  tradePromptQ: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.lg, marginBottom: spacing.xs },
+  tradeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, borderRadius: radius.md, paddingVertical: spacing.md },
+  tradeBtnTxt: { fontFamily: font.displayBold, fontSize: fs.base },
+  tradeBtnAlt: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, borderRadius: radius.md, paddingVertical: spacing.md, backgroundColor: colors.surface3, borderWidth: 1, borderColor: colors.border },
+  tradeBtnAltTxt: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base },
+  tradeSkip: { alignItems: "center", paddingVertical: spacing.sm },
+  tradeSkipTxt: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.base, textDecorationLine: "underline" },
+  rememberRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingTop: spacing.xs },
+  rememberTxt: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, flex: 1 },
+  prefChip: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginTop: 4 },
+  prefChipTxt: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
   followWrap: { marginTop: spacing.sm, marginBottom: spacing.md },
   followLabel: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: spacing.sm },
   followRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
