@@ -10,7 +10,7 @@ import discord
 logger = logging.getLogger("discord_bot")
 
 
-def build_client(db, compute_stats, compute_leaderboard):
+def build_client(db, compute_stats, compute_leaderboard, gex_summary=None):
     intents = discord.Intents.default()
     intents.message_content = True
     client = discord.Client(intents=intents)
@@ -64,6 +64,35 @@ def build_client(db, compute_stats, compute_leaderboard):
                                       description="\n".join(lines), color=0xF5A623)
                 embed.set_footer(text="Blue Collar Alpha · !leaderboard · opt in from the app")
                 await message.channel.send(embed=embed)
+
+            elif content.startswith("!gex"):
+                if gex_summary is None:
+                    await message.channel.send("GEX data isn't available right now.")
+                    return
+                parts = (message.content or "").strip().split()
+                sym = parts[1].upper() if len(parts) > 1 else "SPY"
+                g = await gex_summary(sym)
+                if g.get("error"):
+                    await message.channel.send(g["error"])
+                    return
+                if g.get("empty"):
+                    await message.channel.send(f"No GEX data logged for **{g['symbol']}** yet. Check back once today's levels are ingested. 📊")
+                    return
+                pos = g["regime"].startswith("Positive")
+                emb = discord.Embed(
+                    title=f"📊 {g['symbol']} Gamma Regime",
+                    description=f"**{g['regime']}**\n{g['implication']}",
+                    color=0x22C55E if pos else 0xEF4444)
+                if g.get("spot") is not None:
+                    emb.add_field(name="Spot", value=f"{g['spot']:,.2f}")
+                if g.get("flip_point") is not None:
+                    emb.add_field(name="Gamma Flip", value=f"{g['flip_point']:,.2f}")
+                if g.get("call_wall") is not None:
+                    emb.add_field(name="Call Wall", value=f"{g['call_wall']:,.2f}")
+                if g.get("put_wall") is not None:
+                    emb.add_field(name="Put Wall", value=f"{g['put_wall']:,.2f}")
+                emb.set_footer(text="Blue Collar Alpha · !gex SPY|SPX|XSP · not financial advice")
+                await message.channel.send(embed=emb)
         except Exception as e:
             logger.error("discord bot on_message err: %s", e)
 

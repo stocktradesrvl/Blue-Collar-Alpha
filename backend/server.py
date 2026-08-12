@@ -13,6 +13,7 @@ import bcrypt
 from jose import jwt, JWTError
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 from emergentintegrations.llm.openai.speech_to_text import OpenAISpeechToText
+from emergentintegrations.llm.openai.text_to_speech import OpenAITextToSpeech
 from discord_bot import build_client as _build_discord_client
 
 ROOT_DIR = Path(__file__).parent
@@ -1435,6 +1436,41 @@ async def coach_analyze_image(inp: CoachImageIn, user=Depends(get_current_user))
                                        "content": answer, "created_at": datetime.now(timezone.utc).isoformat()})
     return {"reply": answer, "suggestions": suggestions}
 
+# ---------- Text-to-speech: spoken coach replies & end-of-day recap ----------
+_TTS_VOICES = OpenAITextToSpeech.VOICES
+
+class SpeakIn(BaseModel):
+    text: str
+    voice: Optional[str] = "onyx"
+
+def _strip_for_speech(text: str) -> str:
+    """Remove markdown / follow-up markers so the spoken output sounds natural."""
+    t = text or ""
+    t = re.split(r"FOLLOWUPS:", t)[0]
+    t = re.sub(r"[*_#`>]+", "", t)
+    t = re.sub(r"^\s*[-•]\s*", "", t, flags=re.MULTILINE)
+    t = re.sub(r"\n{2,}", "\n", t).strip()
+    return t
+
+@api.post("/coach/speak")
+async def coach_speak(inp: SpeakIn, user=Depends(get_current_user)):
+    """Synthesize spoken audio (mp3) from a coach reply or the daily recap so the
+    trader can listen hands-free. Premium feature."""
+    enforce_ai_limit(user)
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        raise HTTPException(status_code=402, detail="Voice replies are a Premium feature. Upgrade to unlock.")
+    clean = _strip_for_speech(inp.text)[:4000]
+    if not clean:
+        raise HTTPException(status_code=400, detail="Nothing to read aloud.")
+    voice = inp.voice if inp.voice in _TTS_VOICES else "onyx"
+    try:
+        tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+        b64 = await tts.generate_speech_base64(text=clean, model="tts-1", voice=voice, response_format="mp3")
+    except Exception as e:
+        logger.error(f"tts err {e}")
+        raise HTTPException(status_code=502, detail="Could not generate audio. Please try again.")
+    return {"audio_base64": b64, "mime": "audio/mpeg"}
+
 # ---------- Stripe payments ----------
 class CheckoutIn(BaseModel):
     tier: str
@@ -1825,6 +1861,84 @@ async def emotion_insights(user=Depends(get_current_user)):
     out.sort(key=lambda x: x["pnl"], reverse=True)
     return {"by_emotion": out, "has_data": len(out) > 0}
 
+@api.get("/insights/setups")
+async def setup_insights(user=Depends(get_current_user)):
+    """Performance by detected setup so the best-performing plays surface over time."""
+    trades = await db.trades.find({"user_id": user["id"]}).to_list(2000)
+    taken = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
+    g = defaultdict(lambda: {"n": 0, "pnl": 0.0, "wins": 0})
+    for t in taken:
+        name = t.get("detected_setup") or t.get("strategy_name") or "Unlabeled"
+        g[name]["n"] += 1
+        g[name]["pnl"] += t.get("pnl", 0)
+        if t.get("pnl", 0) > 0:
+            g[name]["wins"] += 1
+    out = [{"setup": k, "trades": v["n"], "pnl": round(v["pnl"], 2),
+            "win_rate": round(v["wins"] / v["n"] * 100, 1) if v["n"] else 0,
+            "avg_pnl": round(v["pnl"] / v["n"], 2) if v["n"] else 0} for k, v in g.items()]
+    out.sort(key=lambda x: x["pnl"], reverse=True)
+    return {"setups": out, "has_data": len(out) > 0}
+
+# ---------- P&L heatmap: day-of-week × time-of-day ----------
+_HM_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+# (label, start_hour_inclusive, end_hour_exclusive) — US market sessions.
+_HM_SESSIONS = [("Open", 0, 10), ("Mid-AM", 10, 12), ("Midday", 12, 14), ("PM", 14, 16), ("Late", 16, 24)]
+
+@api.get("/insights/heatmap")
+async def pnl_heatmap(user=Depends(get_current_user)):
+    """Aggregate realized P&L by weekday and trading session so the trader can see
+    WHEN they make and lose money."""
+    trades = await db.trades.find({"user_id": user["id"]}).to_list(3000)
+    taken = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
+
+    day_agg = [{"pnl": 0.0, "trades": 0, "wins": 0} for _ in range(7)]
+    sess_agg = [{"pnl": 0.0, "trades": 0, "wins": 0} for _ in _HM_SESSIONS]
+    grid = [[{"pnl": 0.0, "trades": 0, "wins": 0} for _ in range(7)] for _ in _HM_SESSIONS]
+    used_days: set = set()
+    used_sessions: set = set()
+
+    for t in taken:
+        ca = (t.get("created_at") or "").replace("Z", "").replace("z", "")
+        try:
+            di = datetime.fromisoformat(ca).weekday()
+        except Exception:
+            continue
+        pnl = t.get("pnl", 0) or 0
+        win = 1 if pnl > 0 else 0
+        day_agg[di]["pnl"] += pnl; day_agg[di]["trades"] += 1; day_agg[di]["wins"] += win
+        used_days.add(di)
+        h = _parse_hour(t.get("trade_time"))
+        if h is None:
+            continue
+        si = next((idx for idx, s in enumerate(_HM_SESSIONS) if s[1] <= h < s[2]), None)
+        if si is None:
+            continue
+        sess_agg[si]["pnl"] += pnl; sess_agg[si]["trades"] += 1; sess_agg[si]["wins"] += win
+        used_sessions.add(si)
+        c = grid[si][di]
+        c["pnl"] += pnl; c["trades"] += 1; c["wins"] += win
+
+    def fin(a):
+        return {"pnl": round(a["pnl"], 2), "trades": a["trades"],
+                "win_rate": round(a["wins"] / a["trades"] * 100, 1) if a["trades"] else 0}
+
+    day_idx = [0, 1, 2, 3, 4] + [i for i in (5, 6) if i in used_days]
+    day_stats = [{"day": _HM_DAYS[i], **fin(day_agg[i])} for i in day_idx]
+    session_stats = [{"session": _HM_SESSIONS[si][0], **fin(sess_agg[si])} for si in range(len(_HM_SESSIONS))]
+    grid_out = [{"session": _HM_SESSIONS[si][0],
+                 "cells": [{"day": _HM_DAYS[di], **fin(grid[si][di])} for di in day_idx]}
+                for si in range(len(_HM_SESSIONS))]
+
+    active_days = [d for d in day_stats if d["trades"] > 0]
+    active_sess = [s for s in session_stats if s["trades"] > 0]
+    best_day = max(active_days, key=lambda x: x["pnl"]) if active_days else None
+    worst_day = min(active_days, key=lambda x: x["pnl"]) if active_days else None
+    best_session = max(active_sess, key=lambda x: x["pnl"]) if active_sess else None
+    return {"has_data": len(taken) > 0, "has_time": len(used_sessions) > 0,
+            "days": [_HM_DAYS[i] for i in day_idx], "day_stats": day_stats,
+            "session_stats": session_stats, "grid": grid_out,
+            "best_day": best_day, "worst_day": worst_day, "best_session": best_session}
+
 @api.get("/insights/streak")
 async def rule_streak(user=Depends(get_current_user)):
     trades = await db.trades.find({"user_id": user["id"]}).sort("created_at", -1).to_list(1000)
@@ -2183,6 +2297,30 @@ async def gex_one(symbol: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="No GEX data for this symbol yet")
     return _clean_gex(d)
 
+async def _gex_summary(sym: str) -> dict:
+    """Plain-English gamma regime + walls for the Discord !gex command."""
+    sym = (sym or "SPY").upper().strip()
+    if sym not in GEX_SYMBOLS:
+        return {"error": f"Unsupported symbol. Try one of: {', '.join(GEX_SYMBOLS)}."}
+    d = await db.gex_snapshots.find_one({"symbol": sym})
+    if not d:
+        return {"empty": True, "symbol": sym}
+    net = d.get("net_gex") or 0
+    positive = net >= 0
+    return {
+        "symbol": sym,
+        "spot": d.get("spot"),
+        "net_gex": net,
+        "flip_point": d.get("flip_point"),
+        "call_wall": d.get("call_wall"),
+        "put_wall": d.get("put_wall"),
+        "regime": "Positive gamma" if positive else "Negative gamma",
+        "implication": ("Dealers dampen moves — expect mean-reversion / pinning toward the walls."
+                        if positive else
+                        "Dealers amplify moves — expect trendier, more volatile price action."),
+        "timestamp": d.get("timestamp"),
+    }
+
 @api.post("/user/send-test-digest")
 async def send_test_digest(user=Depends(get_current_user)):
     if TIER_LEVEL.get(effective_tier(user), 0) < 2:
@@ -2357,7 +2495,7 @@ async def start_discord_gateway():
         logger.info("Discord gateway bot disabled (no token or DISCORD_BOT_GATEWAY!=1)")
         return
     try:
-        _discord_gateway = _build_discord_client(db, _compute_stats, _compute_leaderboard)
+        _discord_gateway = _build_discord_client(db, _compute_stats, _compute_leaderboard, _gex_summary)
         asyncio.create_task(_discord_gateway.start(DISCORD_BOT_TOKEN))
         logger.info("Discord gateway bot starting…")
     except Exception as e:

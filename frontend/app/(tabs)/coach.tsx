@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/context/ToastContext";
 import { useVoiceNote } from "@/src/hooks/useVoiceNote";
+import { useSpeak } from "@/src/hooks/useSpeak";
 import { useShareIntentContext } from "@/src/context/ShareIntentContext";
 import { storage } from "@/src/utils/storage";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
@@ -68,6 +69,7 @@ export default function Coach() {
   const locked = user?.subscription_tier !== "premium";
   const toast = useToast();
   const voice = useVoiceNote(toast, false);
+  const speaker = useSpeak(toast);
   const { pending, clear } = useShareIntentContext();
   const processingShare = useRef(false);
   const [sharedB64, setSharedB64] = useState<string | null>(null);
@@ -230,7 +232,16 @@ export default function Coach() {
             </LinearGradient>
           ) : (
             <LinearGradient key={i} colors={["rgba(46,118,232,0.16)", "rgba(22,27,34,0.95)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.ai]}>
-              <Ionicons name="sparkles" size={14} color={A.accent} style={{ marginBottom: 4 }} />
+              <View style={styles.aiHead}>
+                <Ionicons name="sparkles" size={14} color={A.accent} />
+                <Pressable testID={`coach-speak-${i}`} hitSlop={10} onPress={() => speaker.speak(`msg-${i}`, m.content)} style={styles.speakBtn}>
+                  {speaker.loadingId === `msg-${i}` ? (
+                    <ActivityIndicator size="small" color={A.accent} />
+                  ) : (
+                    <Ionicons name={speaker.playingId === `msg-${i}` ? "stop-circle" : "volume-high"} size={17} color={A.accent} />
+                  )}
+                </Pressable>
+              </View>
               <CoachText text={m.content} />
             </LinearGradient>
           )
@@ -310,6 +321,8 @@ const styles = StyleSheet.create({
   ai: { backgroundColor: colors.surface2, alignSelf: "flex-start", borderWidth: 1, borderColor: colors.borderStrong, borderBottomLeftRadius: radius.sm },
   msgTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, lineHeight: 22 },
   mdHeading: { fontFamily: font.displayBold, fontSize: fs.lg, color: colors.onSurface, marginTop: 2 },
+  aiHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  speakBtn: { padding: 2, minWidth: 22, minHeight: 22, alignItems: "center", justifyContent: "center" },
   mdBold: { fontFamily: font.displayBold, color: colors.onSurface },
   sharedImg: { width: 200, height: 130, borderRadius: radius.md, marginBottom: spacing.sm, backgroundColor: colors.surface3 },
   tradePrompt: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginTop: spacing.sm, gap: spacing.sm },

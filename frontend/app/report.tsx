@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
+import { useSpeak } from "@/src/hooks/useSpeak";
 import { colors, spacing, radius, font, fs } from "@/src/theme";
 
 export default function Report() {
@@ -11,6 +12,7 @@ export default function Report() {
   const router = useRouter();
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const speaker = useSpeak();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,6 +36,18 @@ export default function Report() {
             <View style={styles.cardHead}>
               <Ionicons name="sparkles" size={20} color={colors.brand} />
               <Text style={styles.label}>{report?.label || "AI Coach"}</Text>
+              {report?.report && report?.has_data !== false && (
+                <Pressable testID="report-listen" style={styles.listenBtn} onPress={() => speaker.speak("report", report.report)}>
+                  {speaker.loadingId === "report" ? (
+                    <ActivityIndicator size="small" color={colors.brand} />
+                  ) : (
+                    <>
+                      <Ionicons name={speaker.playingId === "report" ? "stop-circle" : "volume-high"} size={16} color={colors.brand} />
+                      <Text style={styles.listenTxt}>{speaker.playingId === "report" ? "Stop" : "Listen"}</Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
             </View>
             <Text style={styles.report}>{report?.report}</Text>
           </View>
@@ -51,6 +65,8 @@ const styles = StyleSheet.create({
   gen: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.lg },
   card: { backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.brand, gap: spacing.md },
   cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  listenBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: "auto", backgroundColor: colors.brandTint, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6 },
+  listenTxt: { color: colors.brand, fontFamily: font.displayBold, fontSize: fs.sm },
   label: { color: colors.brand, fontFamily: font.display, fontSize: fs.lg, textTransform: "uppercase", letterSpacing: 1 },
   report: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, lineHeight: 26 },
 });

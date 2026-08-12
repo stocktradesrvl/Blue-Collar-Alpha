@@ -5,12 +5,12 @@
 
 ## 🔜 NEXT BUILD QUEUE (greenlit 2026-06 fork — build these next)
 ### Voice & AI Coaching
-- [>] Voice reply from the coach (TTS) — hands-free "talk to your coach" while reviewing trades
+- [x] Voice reply from the coach (TTS) — speaker button on each AI coach bubble + Listen on Session Report (OpenAI tts-1, /api/coach/speak)
 - [>] Auto-tag emotion from the TONE of a voice note (stressed/confident) → correlate to P&L
-- [>] End-of-day spoken recap: one tap → coach reads the day back + one focus for tomorrow
+- [x] End-of-day spoken recap: Listen button on Session Report reads the day back (TTS)
 ### Discord (bot now live)
 - [>] !wins command + scheduled WEEKLY leaderboard auto-post to a channel (hands-free engagement)
-- [>] !gex command — members pull current SPY/SPX regime + walls from the bot
+- [x] !gex command — members pull current SPY/SPX/XSP regime + walls from the bot (needs Message Content Intent enabled)
 - [>] Streak/milestone shout-outs auto-posted (e.g., "🔥 Trader-4F2A: 5 green days")
 ### GEX / Options
 - [>] Per-expiry ingest → 0DTE vs multi-expiry toggle (needs Pi per-expiry breakdown first)
@@ -20,8 +20,8 @@
 - [>] Free 7-day Premium trial with auto-downgrade
 - [>] Annual-plan upsell banner triggered after N months of monthly billing
 ### Analytics
-- [>] R-multiple / expectancy dashboard + setup leaderboard
-- [>] Time-of-day & day-of-week P&L heatmap
+- [x] R-multiple / expectancy dashboard + setup leaderboard (Setup Performance screen, /api/insights/setups)
+- [x] Time-of-day & day-of-week P&L heatmap (P&L Heatmap screen, /api/insights/heatmap)
 
 
 ## GEX / Options Intelligence  — ALL QUEUED
@@ -43,8 +43,8 @@
 
 ## Analytics / Dashboards
 - [ ] R-multiple / expectancy metrics
-- [ ] Time-of-day and day-of-week performance heatmap
-- [ ] Setup performance leaderboard (win rate + expectancy per setup)
+- [x] Time-of-day and day-of-week performance heatmap (P&L Heatmap screen)
+- [x] Setup performance leaderboard (win rate + expectancy per setup) (Setup Performance screen)
 - [ ] Drawdown curve + max adverse excursion
 - [ ] Tag/strategy filter across all dashboards
 

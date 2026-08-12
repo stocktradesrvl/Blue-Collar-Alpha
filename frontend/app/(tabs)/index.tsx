@@ -325,6 +325,16 @@ export default function Dashboard() {
                 <Text style={styles.chartBtnTxt}>Performance Metrics</Text>
                 <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
               </Pressable>
+              <Pressable testID="setups-btn" style={styles.chartBtn} onPress={() => router.push("/setups")}>
+                <Ionicons name="pricetags" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>Setup Performance</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+              <Pressable testID="heatmap-btn" style={styles.chartBtn} onPress={() => router.push("/heatmap")}>
+                <Ionicons name="grid" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>P&L Heatmap</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
               <Pressable testID="calendar-btn" style={styles.chartBtn} onPress={() => router.push("/calendar")}>
                 <Ionicons name="calendar" size={20} color={colors.onSurface} />
                 <Text style={styles.chartBtnTxt}>P&L Calendar</Text>
