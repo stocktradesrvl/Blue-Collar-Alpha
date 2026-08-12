@@ -145,6 +145,12 @@ export default function Dashboard() {
     return tags.find((t: any) => t.count >= 3) || null;
   }, [alert30]);
   const habitSig = topHabit ? `${topHabit.tag}:${topHabit.count}` : null;
+  const trialCountdown = useMemo(() => {
+    const t = user?.trial_premium_until;
+    if (!t || user?.raw_tier !== "free") return null;
+    const days = Math.ceil((new Date(t).getTime() - Date.now()) / 86400000);
+    return days >= 0 ? days : null;
+  }, [user]);
   const showHabitAlert = !!topHabit && dismissedSig !== habitSig;
   const dismissHabit = useCallback(() => {
     setDismissedSig(habitSig);
@@ -230,6 +236,19 @@ export default function Dashboard() {
             </Text>
             <Ionicons name="chevron-forward" size={18} color={colors.onBrand} />
           </Pressable>
+        )}
+        {trialCountdown !== null && (
+          <Animated.View entering={FadeInDown.duration(400)}>
+            <Pressable testID="trial-countdown" style={[styles.trialCountdown, { borderColor: A.accent + "66" }]} onPress={() => router.push("/(tabs)/profile")}>
+              <Ionicons name="sparkles" size={18} color={A.accent} />
+              <Text style={styles.trialCountdownTxt}>
+                {trialCountdown === 0 ? "Premium trial ends today" : `${trialCountdown} day${trialCountdown === 1 ? "" : "s"} of Premium left`}
+              </Text>
+              <View style={[styles.trialKeepBtn, { backgroundColor: A.accent }]}>
+                <Text style={[styles.trialKeepTxt, { color: A.onAccent }]}>Keep Premium</Text>
+              </View>
+            </Pressable>
+          </Animated.View>
         )}
         {user?.subscription_tier === "free" && !user?.trial_used && (
           <Animated.View entering={FadeInDown.duration(500)}>
@@ -391,6 +410,11 @@ export default function Dashboard() {
               <Pressable testID="heatmap-btn" style={styles.chartBtn} onPress={() => router.push("/heatmap")}>
                 <Ionicons name="grid" size={20} color={colors.onSurface} />
                 <Text style={styles.chartBtnTxt}>P&L Heatmap</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
+              </Pressable>
+              <Pressable testID="voice-journal-btn" style={styles.chartBtn} onPress={() => router.push("/voice-journal")}>
+                <Ionicons name="mic" size={20} color={colors.onSurface} />
+                <Text style={styles.chartBtnTxt}>Voice Journal & Mood</Text>
                 <Ionicons name="chevron-forward" size={18} color={colors.onSurface3} />
               </Pressable>
               <Pressable testID="calendar-btn" style={styles.chartBtn} onPress={() => router.push("/calendar")}>
@@ -587,6 +611,10 @@ const styles = StyleSheet.create({
   trialBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.brand, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg, ...glow(colors.brand, 0.4) },
   trialTxt: { flex: 1, color: colors.onBrand, fontFamily: font.display, fontSize: fs.base },
   trialCta: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.lg, gap: spacing.md },
+  trialCountdown: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg },
+  trialCountdownTxt: { flex: 1, color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base },
+  trialKeepBtn: { borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6 },
+  trialKeepTxt: { fontFamily: font.displayBold, fontSize: fs.sm },
   trialCtaTop: { flexDirection: "row", gap: spacing.md, alignItems: "center" },
   trialCtaIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   trialCtaTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.lg },

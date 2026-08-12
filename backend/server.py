@@ -1385,6 +1385,124 @@ async def coach_transcribe(inp: VoiceIn, user=Depends(get_current_user)):
             logger.error(f"voice summary err {e}")
     return {"text": text, "summary": summary}
 
+# ---------- Voice journal: emotion from words + tone, correlated to P&L ----------
+class VoiceNoteIn(BaseModel):
+    text: Optional[str] = None
+    audio_base64: Optional[str] = None
+    ext: Optional[str] = "m4a"
+
+async def _transcribe_b64(audio_base64: str, ext: str) -> str:
+    ext = (ext or "m4a").lower().lstrip(".")
+    if ext not in ("m4a", "mp3", "mp4", "wav", "webm", "mpeg", "mpga"):
+        ext = "m4a"
+    try:
+        raw = base64.b64decode(audio_base64, validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid audio data")
+    if len(raw) > 24 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Voice note too large (max ~24MB).")
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
+            tmp.write(raw); tmp_path = tmp.name
+        stt = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
+        with open(tmp_path, "rb") as fh:
+            resp = await stt.transcribe(file=fh, model="whisper-1", response_format="text")
+        text = resp if isinstance(resp, str) else getattr(resp, "text", str(resp))
+        return (text or "").strip()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"voicenote transcribe err {e}")
+        raise HTTPException(status_code=502, detail="Could not transcribe voice note. Try again.")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try: os.remove(tmp_path)
+            except Exception: pass
+
+async def _day_pnl_map(uid: str) -> dict:
+    trades = await db.trades.find({"user_id": uid}, {"pnl": 1, "created_at": 1, "taken": 1, "pending": 1}).to_list(3000)
+    m = defaultdict(float)
+    for t in trades:
+        if t.get("taken", True) is False or t.get("pending"):
+            continue
+        d = (t.get("created_at") or "")[:10]
+        if d:
+            m[d] += t.get("pnl", 0) or 0
+    return m
+
+@api.post("/journal/voice-note")
+async def create_voice_note(inp: VoiceNoteIn, user=Depends(get_current_user)):
+    """Save a spoken (or typed) journal note and infer the trader's emotion from the
+    WORDS, TONE and overall feel — then tie it to that day's P&L."""
+    enforce_ai_limit(user)
+    if TIER_LEVEL.get(effective_tier(user), 0) < 2:
+        raise HTTPException(status_code=402, detail="Voice journaling is a Premium feature. Upgrade to unlock.")
+    text = (inp.text or "").strip()
+    if not text and inp.audio_base64:
+        text = await _transcribe_b64(inp.audio_base64, inp.ext or "m4a")
+    if not text:
+        raise HTTPException(status_code=422, detail="Nothing to journal — say or type a note first.")
+    emotion, tone, reason = "Calm", "", ""
+    try:
+        system = ("You analyze a trader's short spoken/written journal note. From the WORDS, the TONE, and the "
+                  "OVERALL emotion, classify the single dominant emotional state. Respond ONLY with a valid JSON object. "
+                  f"emotion MUST be exactly one of: {json.dumps(EMOTIONS)}.")
+        prompt = (f"Journal note: \"{text}\"\n\nReturn JSON with keys: emotion (one from the allowed list), "
+                  "tone (2-4 word descriptor of the vocal/written tone, e.g. 'tense and rushed'), "
+                  "reason (one short sentence citing what signals the emotion).")
+        chat = llm(system, f"voicemood-{user['id']}-{uuid.uuid4()}", max_tokens=200)
+        data = extract_json(await chat.send_message(UserMessage(text=prompt))) or {}
+        e = str(data.get("emotion") or "").strip().title()
+        emotion = e if e in EMOTIONS else "Calm"
+        tone = str(data.get("tone") or "").strip()[:60]
+        reason = str(data.get("reason") or "").strip()[:200]
+    except Exception as e:
+        logger.error(f"voice emotion err {e}")
+    now = datetime.now(timezone.utc)
+    doc = {"id": str(uuid.uuid4()), "user_id": user["id"], "text": text[:2000],
+           "emotion": emotion, "tone": tone, "reason": reason,
+           "date": now.date().isoformat(), "created_at": now.isoformat()}
+    await db.voice_notes.insert_one(doc)
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+@api.get("/journal/voice-notes")
+async def list_voice_notes(user=Depends(get_current_user)):
+    notes = await db.voice_notes.find({"user_id": user["id"]}).sort("created_at", -1).to_list(100)
+    day = await _day_pnl_map(user["id"])
+    return {"notes": [{"id": n["id"], "text": n["text"], "emotion": n["emotion"], "tone": n.get("tone", ""),
+                       "reason": n.get("reason", ""), "created_at": n["created_at"],
+                       "day_pnl": round(day.get(n.get("date", ""), 0), 2)} for n in notes]}
+
+@api.delete("/journal/voice-note/{nid}")
+async def delete_voice_note(nid: str, user=Depends(get_current_user)):
+    await db.voice_notes.delete_one({"id": nid, "user_id": user["id"]})
+    return {"ok": True}
+
+@api.get("/insights/emotion-voice")
+async def emotion_voice_insights(user=Depends(get_current_user)):
+    """Correlate the emotion behind each voice note to that day's realized P&L."""
+    notes = await db.voice_notes.find({"user_id": user["id"]}).sort("created_at", -1).to_list(500)
+    day = await _day_pnl_map(user["id"])
+    agg = {}
+    for n in notes:
+        dp = day.get(n.get("date", ""), 0)
+        a = agg.setdefault(n["emotion"], {"count": 0, "pnl": 0.0, "green": 0})
+        a["count"] += 1; a["pnl"] += dp
+        if dp > 0:
+            a["green"] += 1
+    by_emotion = [{"emotion": k, "count": v["count"], "total_pnl": round(v["pnl"], 2),
+                   "avg_pnl": round(v["pnl"] / v["count"], 2) if v["count"] else 0,
+                   "win_rate": round(v["green"] / v["count"] * 100, 1) if v["count"] else 0}
+                  for k, v in agg.items()]
+    by_emotion.sort(key=lambda x: x["avg_pnl"], reverse=True)
+    recent = [{"id": n["id"], "text": n["text"], "emotion": n["emotion"], "tone": n.get("tone", ""),
+               "reason": n.get("reason", ""), "created_at": n["created_at"],
+               "day_pnl": round(day.get(n.get("date", ""), 0), 2)} for n in notes[:20]]
+    return {"has_data": len(notes) > 0, "total_notes": len(notes), "by_emotion": by_emotion,
+            "best_emotion": by_emotion[0] if by_emotion else None,
+            "worst_emotion": by_emotion[-1] if by_emotion else None, "recent": recent}
+
 @api.post("/coach/chat")
 async def coach_chat(inp: ChatIn, user=Depends(get_current_user)):
     enforce_ai_limit(user)
@@ -1945,11 +2063,23 @@ _HM_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _HM_SESSIONS = [("Open", 0, 10), ("Mid-AM", 10, 12), ("Midday", 12, 14), ("PM", 14, 16), ("Late", 16, 24)]
 
 @api.get("/insights/heatmap")
-async def pnl_heatmap(user=Depends(get_current_user)):
+async def pnl_heatmap(symbol: Optional[str] = None, strategy_id: Optional[str] = None, user=Depends(get_current_user)):
     """Aggregate realized P&L by weekday and trading session so the trader can see
-    WHEN they make and lose money."""
+    WHEN they make and lose money. Optionally filter by symbol or strategy."""
     trades = await db.trades.find({"user_id": user["id"]}).to_list(3000)
     taken = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
+    # Filter options from the full set (before applying the active filter).
+    symbols = sorted({(t.get("symbol") or "").upper() for t in taken if t.get("symbol")})
+    strat_map = {}
+    for t in taken:
+        for sid, sname in zip(t.get("strategy_ids", []) or [], t.get("strategy_names", []) or []):
+            if sid:
+                strat_map[sid] = sname
+    strategies_opt = [{"id": k, "name": v} for k, v in strat_map.items()]
+    if symbol:
+        taken = [t for t in taken if (t.get("symbol") or "").upper() == symbol.upper()]
+    if strategy_id:
+        taken = [t for t in taken if strategy_id in (t.get("strategy_ids") or [])]
 
     day_agg = [{"pnl": 0.0, "trades": 0, "wins": 0} for _ in range(7)]
     sess_agg = [{"pnl": 0.0, "trades": 0, "wins": 0} for _ in _HM_SESSIONS]
@@ -1997,10 +2127,13 @@ async def pnl_heatmap(user=Depends(get_current_user)):
     return {"has_data": len(taken) > 0, "has_time": len(used_sessions) > 0,
             "days": [_HM_DAYS[i] for i in day_idx], "day_stats": day_stats,
             "session_stats": session_stats, "grid": grid_out,
-            "best_day": best_day, "worst_day": worst_day, "best_session": best_session}
+            "best_day": best_day, "worst_day": worst_day, "best_session": best_session,
+            "symbols": symbols, "strategies": strategies_opt,
+            "filter": {"symbol": symbol, "strategy_id": strategy_id}}
 
 @api.get("/insights/heatmap/trades")
-async def heatmap_trades(day: str, session: str, user=Depends(get_current_user)):
+async def heatmap_trades(day: str, session: str, symbol: Optional[str] = None,
+                         strategy_id: Optional[str] = None, user=Depends(get_current_user)):
     """The executed trades behind one heatmap cell (weekday × session), for drill-down."""
     di = _HM_DAYS.index(day) if day in _HM_DAYS else None
     sess = next((s for s in _HM_SESSIONS if s[0] == session), None)
@@ -2008,6 +2141,10 @@ async def heatmap_trades(day: str, session: str, user=Depends(get_current_user))
         raise HTTPException(status_code=400, detail="Invalid day or session")
     trades = await db.trades.find({"user_id": user["id"]}, {"image_base64": 0}).to_list(3000)
     taken = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
+    if symbol:
+        taken = [t for t in taken if (t.get("symbol") or "").upper() == symbol.upper()]
+    if strategy_id:
+        taken = [t for t in taken if strategy_id in (t.get("strategy_ids") or [])]
     out = []
     for t in taken:
         ca = (t.get("created_at") or "").replace("Z", "").replace("z", "")

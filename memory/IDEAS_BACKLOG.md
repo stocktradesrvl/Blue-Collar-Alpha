@@ -6,7 +6,7 @@
 ## 🔜 NEXT BUILD QUEUE (greenlit 2026-06 fork — build these next)
 ### Voice & AI Coaching
 - [x] Voice reply from the coach (TTS) — speaker button on each AI coach bubble + Listen on Session Report (OpenAI tts-1, /api/coach/speak)
-- [>] Auto-tag emotion from the TONE of a voice note (stressed/confident) → correlate to P&L
+- [x] Auto-tag emotion from a voice/typed note (words + tone + overall) → correlate to that day's P&L (Voice Journal screen, /api/journal/voice-note + /api/insights/emotion-voice)
 - [x] End-of-day spoken recap: Listen button on Session Report reads the day back (TTS)
 ### Discord (bot now live)
 - [>] !wins command + scheduled WEEKLY leaderboard auto-post to a channel (hands-free engagement)

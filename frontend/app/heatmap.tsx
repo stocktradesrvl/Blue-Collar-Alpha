@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -27,18 +27,29 @@ export default function Heatmap() {
   const [cell, setCell] = useState<{ day: string; session: string } | null>(null);
   const [cellData, setCellData] = useState<any>(null);
   const [cellLoading, setCellLoading] = useState(false);
+  const [fSymbol, setFSymbol] = useState<string | null>(null);
+  const [fStrategy, setFStrategy] = useState<string | null>(null);
+
+  const qs = useCallback(() => {
+    const p: string[] = [];
+    if (fSymbol) p.push(`symbol=${encodeURIComponent(fSymbol)}`);
+    if (fStrategy) p.push(`strategy_id=${encodeURIComponent(fStrategy)}`);
+    return p.length ? `?${p.join("&")}` : "";
+  }, [fSymbol, fStrategy]);
 
   const load = useCallback(async () => {
-    try { setData(await api.get("/insights/heatmap")); } catch {}
+    try { setData(await api.get(`/insights/heatmap${qs()}`)); } catch {}
     setLoading(false);
-  }, []);
+  }, [qs]);
   useAutoRefresh(load, 30000);
 
   const openCell = useCallback(async (day: string, session: string) => {
     setCell({ day, session }); setCellData(null); setCellLoading(true);
-    try { setCellData(await api.get(`/insights/heatmap/trades?day=${encodeURIComponent(day)}&session=${encodeURIComponent(session)}`)); } catch {}
+    try { setCellData(await api.get(`/insights/heatmap/trades?day=${encodeURIComponent(day)}&session=${encodeURIComponent(session)}${qs() ? "&" + qs().slice(1) : ""}`)); } catch {}
     setCellLoading(false);
-  }, []);
+  }, [qs]);
+
+  useEffect(() => { load(); }, [fSymbol, fStrategy]);  // reload when a filter changes
 
   const days: string[] = data?.days || [];
   const grid: any[] = data?.grid || [];
@@ -54,6 +65,24 @@ export default function Heatmap() {
         <Text style={styles.title}>P&L Heatmap</Text>
         <View style={{ width: 24 }} />
       </View>
+
+      {data && (data.symbols?.length > 0 || data.strategies?.length > 0) && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar} contentContainerStyle={styles.filterBarContent}>
+          {(() => {
+            const chip = (key: string, label: string, active: boolean, onPress: () => void) => (
+              <Pressable key={key} testID={`filter-${key}`} onPress={onPress}
+                style={[styles.chip, active && { backgroundColor: A.accent, borderColor: A.accent }]}>
+                <Text style={[styles.chipTxt, active && { color: A.onAccent }]} numberOfLines={1}>{label}</Text>
+              </Pressable>
+            );
+            return [
+              chip("all", "All", !fSymbol && !fStrategy, () => { setFSymbol(null); setFStrategy(null); }),
+              ...data.symbols.map((s: string) => chip(`sym-${s}`, s, fSymbol === s, () => { setFStrategy(null); setFSymbol(fSymbol === s ? null : s); })),
+              ...data.strategies.map((st: any) => chip(`strat-${st.id}`, st.name, fStrategy === st.id, () => { setFSymbol(null); setFStrategy(fStrategy === st.id ? null : st.id); })),
+            ];
+          })()}
+        </ScrollView>
+      )}
 
       {loading ? (
         <ActivityIndicator color={A.accent} style={{ marginTop: 40 }} />
@@ -178,6 +207,10 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   back: { width: 24 },
   title: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
+  filterBar: { maxHeight: 52, flexGrow: 0 },
+  filterBarContent: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm, alignItems: "center" },
+  chip: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, maxWidth: 160 },
+  chipTxt: { color: colors.onSurface2, fontFamily: font.displayBold, fontSize: fs.sm },
   empty: { alignItems: "center", padding: spacing.xxl, gap: spacing.md },
   emptyTxt: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.base, textAlign: "center", lineHeight: 20 },
   callouts: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.xl },
