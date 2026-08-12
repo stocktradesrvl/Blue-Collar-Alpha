@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share, TextInput, KeyboardAvoidingView, Platform, Switch, Modal } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
@@ -41,7 +41,9 @@ export default function Profile() {
   const [digestOn, setDigestOn] = useState(user?.weekly_digest_enabled !== false);
   const [shareWins, setShareWins] = useState(!!user?.discord_share_wins);
   const [leaderboard, setLeaderboard] = useState(!!user?.leaderboard_optin);
-  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  const [billing, setBilling] = useState<"monthly" | "annual">(
+    useLocalSearchParams().billing === "annual" ? "annual" : "monthly"
+  );
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [delPw, setDelPw] = useState("");
   const [deleting, setDeleting] = useState(false);

@@ -1,12 +1,12 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import { useAccent } from "@/src/context/AccentContext";
-import { colors, spacing, radius, font, fs } from "@/src/theme";
+import { colors, spacing, radius, font, fs, GRADE_COLORS } from "@/src/theme";
 
 const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
@@ -24,12 +24,21 @@ export default function Heatmap() {
   const A = useAccent().theme;
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [cell, setCell] = useState<{ day: string; session: string } | null>(null);
+  const [cellData, setCellData] = useState<any>(null);
+  const [cellLoading, setCellLoading] = useState(false);
 
   const load = useCallback(async () => {
     try { setData(await api.get("/insights/heatmap")); } catch {}
     setLoading(false);
   }, []);
   useAutoRefresh(load, 30000);
+
+  const openCell = useCallback(async (day: string, session: string) => {
+    setCell({ day, session }); setCellData(null); setCellLoading(true);
+    try { setCellData(await api.get(`/insights/heatmap/trades?day=${encodeURIComponent(day)}&session=${encodeURIComponent(session)}`)); } catch {}
+    setCellLoading(false);
+  }, []);
 
   const days: string[] = data?.days || [];
   const grid: any[] = data?.grid || [];
@@ -107,9 +116,11 @@ export default function Heatmap() {
                 <View key={row.session} style={styles.gridRow}>
                   <Text style={styles.sessLabel}>{row.session}</Text>
                   {row.cells.map((c: any, i: number) => (
-                    <View key={i} style={[styles.cell, { backgroundColor: cellColor(c.pnl, c.trades, maxAbs) }]}>
+                    <Pressable key={i} testID={`cell-${row.session}-${c.day}`} disabled={!c.trades}
+                      onPress={() => openCell(c.day, row.session)}
+                      style={[styles.cell, { backgroundColor: cellColor(c.pnl, c.trades, maxAbs) }]}>
                       <Text style={styles.cellTxt} numberOfLines={1}>{c.trades ? money(c.pnl) : ""}</Text>
-                    </View>
+                    </Pressable>
                   ))}
                 </View>
               ))}
@@ -118,8 +129,46 @@ export default function Heatmap() {
           {data.best_session && (
             <Text style={styles.footnote}>Your strongest session is <Text style={{ color: colors.success, fontFamily: font.displayBold }}>{data.best_session.session}</Text> ({money(data.best_session.pnl)}).</Text>
           )}
+          {data.has_time && <Text style={styles.hint}>Tap any colored cell to see the trades behind it.</Text>}
         </ScrollView>
       )}
+
+      <Modal visible={!!cell} transparent animationType="slide" onRequestClose={() => setCell(null)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setCell(null)}>
+          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHead}>
+              <Text style={styles.sheetTitle}>{cell?.day} · {cell?.session}</Text>
+              <Pressable testID="cell-close" onPress={() => setCell(null)} hitSlop={10}>
+                <Ionicons name="close" size={22} color={colors.onSurface3} />
+              </Pressable>
+            </View>
+            {cellLoading ? (
+              <ActivityIndicator color={A.accent} style={{ marginVertical: spacing.xl }} />
+            ) : (
+              <>
+                <Text style={[styles.sheetTotal, { color: (cellData?.total_pnl || 0) >= 0 ? colors.success : colors.error }]}>
+                  {money(cellData?.total_pnl || 0)} <Text style={styles.sheetTotalSub}>· {cellData?.count || 0} trade{cellData?.count === 1 ? "" : "s"}</Text>
+                </Text>
+                <ScrollView style={{ maxHeight: 360 }}>
+                  {(cellData?.trades || []).map((t: any) => (
+                    <Pressable key={t.id} testID={`cell-trade-${t.id}`} style={styles.tradeRow} onPress={() => { setCell(null); router.push(`/debrief/${t.id}`); }}>
+                      <View style={[styles.gradeBadge, { backgroundColor: (GRADE_COLORS[t.grade] || colors.onSurface3) + "22" }]}>
+                        <Text style={[styles.gradeTxt, { color: GRADE_COLORS[t.grade] || colors.onSurface }]}>{t.grade || "—"}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.tradeSym} numberOfLines={1}>{t.symbol} · {t.setup || "Setup"}</Text>
+                        <Text style={styles.tradeMeta}>{t.trade_time || "—"}</Text>
+                      </View>
+                      <Text style={[styles.tradePnl, { color: t.pnl >= 0 ? colors.success : colors.error }]}>{money(t.pnl)}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -154,4 +203,18 @@ const styles = StyleSheet.create({
   cell: { flex: 1, height: 40, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
   cellTxt: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: 10 },
   footnote: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, marginTop: spacing.lg, lineHeight: 18 },
+  hint: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, marginTop: spacing.sm, textAlign: "center" },
+  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: colors.surface2, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.xl, borderTopWidth: 1, borderColor: colors.border },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: spacing.md },
+  sheetHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  sheetTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.xl },
+  sheetTotal: { fontFamily: font.displayBold, fontSize: fs["2xl"], marginBottom: spacing.md },
+  sheetTotalSub: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.base },
+  tradeRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  gradeBadge: { width: 34, height: 34, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  gradeTxt: { fontFamily: font.displayBold, fontSize: fs.base },
+  tradeSym: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base },
+  tradeMeta: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm },
+  tradePnl: { fontFamily: font.displayBold, fontSize: fs.lg },
 });

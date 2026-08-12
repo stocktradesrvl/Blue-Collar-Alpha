@@ -17,8 +17,8 @@
 - [>] Intraday flip-cross PUSH alert (spot crosses gamma flip) — back-testable via scorecard
 - [>] "Regime of the day" auto-note injected into the AI Game Plan
 ### Monetization / Retention
-- [>] Free 7-day Premium trial with auto-downgrade
-- [>] Annual-plan upsell banner triggered after N months of monthly billing
+- [x] Free 7-day Premium trial with auto-downgrade (self-serve, no card; /api/user/start-trial + trial_premium_until)
+- [x] Annual-plan upsell banner after N months of monthly billing (/api/upsell/annual; dashboard banner, 14-day snooze)
 ### Analytics
 - [x] R-multiple / expectancy dashboard + setup leaderboard (Setup Performance screen, /api/insights/setups)
 - [x] Time-of-day & day-of-week P&L heatmap (P&L Heatmap screen, /api/insights/heatmap)
@@ -60,7 +60,7 @@
 - [x] GEX Premium teaser on dashboard
 - [x] Annual plan option (discount vs monthly)
 - [x] Referral rewards expansion (tiered milestones)
-- [>] Free-trial of Premium (X days) with auto-downgrade
+- [x] Free-trial of Premium (7 days) with auto-downgrade
 - [x] "Upgrade nudge" when free user hits a gated feature repeatedly
 
 ## Multi-Broker Balance Reconciliation — SHIPPED ✅

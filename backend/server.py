@@ -127,6 +127,8 @@ FREE_MONTHLY_LIMIT = 20
 REFERRAL_MILESTONE = 3          # invite 3 friends -> free month of Pro
 REWARD_PRO_DAYS = 30
 REFERRAL_TIERS = {3: 30, 5: 60, 10: 120}   # invites -> days of free Pro (escalating)
+TRIAL_DAYS = 7               # self-serve free Premium trial length
+UPSELL_MIN_MONTHS = 2        # months on monthly billing before the annual upsell shows
 
 app = FastAPI()
 api = APIRouter(prefix="/api")
@@ -193,11 +195,20 @@ def enforce_ai_limit(user: dict):
 
 def effective_tier(u: dict) -> str:
     base = u.get("subscription_tier", "free")
+    now = datetime.now(timezone.utc)
     rp = u.get("reward_pro_until")
     if rp:
         try:
-            if datetime.fromisoformat(rp) > datetime.now(timezone.utc) and TIER_LEVEL[base] < 1:
+            if datetime.fromisoformat(rp) > now and TIER_LEVEL[base] < 1:
                 base = "pro"
+        except Exception:
+            pass
+    # Self-serve free Premium trial (no card) — grants Premium until it expires, then auto-downgrades.
+    tp = u.get("trial_premium_until")
+    if tp:
+        try:
+            if datetime.fromisoformat(tp) > now and TIER_LEVEL[base] < 2:
+                base = "premium"
         except Exception:
             pass
     return base
@@ -208,6 +219,7 @@ def public_user(u: dict) -> dict:
             "account_balance": u.get("account_balance", 10000),
             "referral_code": u.get("referral_code"), "bonus_trades": u.get("bonus_trades", 0),
             "referral_count": u.get("referral_count", 0), "reward_pro_until": u.get("reward_pro_until"),
+            "trial_premium_until": u.get("trial_premium_until"), "trial_used": bool(u.get("trial_used", False)),
             "daily_loss_limit": u.get("daily_loss_limit", 0),
             "weekly_digest_enabled": u.get("weekly_digest_enabled", True),
             "discord_share_wins": u.get("discord_share_wins", False),
@@ -401,6 +413,25 @@ async def set_balance(inp: BalanceIn, user=Depends(get_current_user)):
     await db.users.update_one({"id": user["id"]}, {"$set": {"account_balance": inp.balance}})
     u = await db.users.find_one({"id": user["id"]})
     return public_user(u)
+
+@api.post("/user/start-trial")
+async def start_premium_trial(user=Depends(get_current_user)):
+    """One-time, card-free 7-day Premium trial. Auto-downgrades when it expires
+    (handled in effective_tier)."""
+    if user.get("trial_used"):
+        raise HTTPException(status_code=400, detail="You've already used your free Premium trial.")
+    if user.get("subscription_tier", "free") != "free":
+        raise HTTPException(status_code=400, detail="You're already on a paid plan.")
+    until = datetime.now(timezone.utc) + timedelta(days=TRIAL_DAYS)
+    await db.users.update_one({"id": user["id"]},
+        {"$set": {"trial_premium_until": until.isoformat(), "trial_used": True}})
+    u = await db.users.find_one({"id": user["id"]})
+    if u.get("discord_id"):
+        try:
+            await grant_role_if_linked(user["id"])
+        except Exception:
+            pass
+    return {"ok": True, "trial_days": TRIAL_DAYS, "trial_premium_until": until.isoformat(), "user": public_user(u)}
 
 class DeleteAccountIn(BaseModel):
     password: Optional[str] = None
@@ -1660,6 +1691,35 @@ async def billing_info(user=Depends(get_current_user)):
     return {"has_subscription": sub_info is not None, "tier": user.get("subscription_tier", "free"),
             "subscription": sub_info, "invoices": invoices}
 
+@api.get("/upsell/annual")
+async def annual_upsell(user=Depends(get_current_user)):
+    """Show a save-more annual offer to monthly subscribers after a few months of billing."""
+    raw = user.get("subscription_tier", "free")
+    if raw not in ("pro", "premium"):
+        return {"show": False}
+    pays = await db.payments.find({"user_id": user["id"], "status": "completed"}).sort("created_at", 1).to_list(100)
+    # Monthly plans use the base keys ('pro'/'premium'); annual plans use '*_annual'.
+    monthly_pays = [p for p in pays if p.get("tier") in ("pro", "premium")]
+    if not monthly_pays:
+        return {"show": False}
+    try:
+        start = datetime.fromisoformat(monthly_pays[0]["created_at"])
+        months = (datetime.now(timezone.utc) - start).days // 30
+    except Exception:
+        months = 0
+    if months < UPSELL_MIN_MONTHS:
+        return {"show": False}
+    annual_key = f"{raw}_annual"
+    monthly = STRIPE_PACKAGES[raw]["amount"]
+    annual = STRIPE_PACKAGES[annual_key]["amount"]
+    yearly_at_monthly = monthly * 12
+    savings = yearly_at_monthly - annual
+    return {"show": True, "base": raw, "annual_tier": annual_key, "months_active": months,
+            "monthly_amount": round(monthly / 100, 2), "annual_amount": round(annual / 100, 2),
+            "annual_monthly_equiv": round(annual / 12 / 100, 2),
+            "savings_amount": round(savings / 100, 2),
+            "savings_pct": round(savings / yearly_at_monthly * 100) if yearly_at_monthly else 0}
+
 @api.get("/")
 async def root():
     return {"message": "Blue Collar Alpha API"}
@@ -1938,6 +1998,33 @@ async def pnl_heatmap(user=Depends(get_current_user)):
             "days": [_HM_DAYS[i] for i in day_idx], "day_stats": day_stats,
             "session_stats": session_stats, "grid": grid_out,
             "best_day": best_day, "worst_day": worst_day, "best_session": best_session}
+
+@api.get("/insights/heatmap/trades")
+async def heatmap_trades(day: str, session: str, user=Depends(get_current_user)):
+    """The executed trades behind one heatmap cell (weekday × session), for drill-down."""
+    di = _HM_DAYS.index(day) if day in _HM_DAYS else None
+    sess = next((s for s in _HM_SESSIONS if s[0] == session), None)
+    if di is None or sess is None:
+        raise HTTPException(status_code=400, detail="Invalid day or session")
+    trades = await db.trades.find({"user_id": user["id"]}, {"image_base64": 0}).to_list(3000)
+    taken = [t for t in trades if t.get("taken", True) is not False and not t.get("pending")]
+    out = []
+    for t in taken:
+        ca = (t.get("created_at") or "").replace("Z", "").replace("z", "")
+        try:
+            if datetime.fromisoformat(ca).weekday() != di:
+                continue
+        except Exception:
+            continue
+        h = _parse_hour(t.get("trade_time"))
+        if h is None or not (sess[1] <= h < sess[2]):
+            continue
+        out.append({"id": t["id"], "symbol": t.get("symbol"), "pnl": round(t.get("pnl", 0) or 0, 2),
+                    "trade_time": t.get("trade_time"), "setup": t.get("detected_setup"),
+                    "grade": t.get("setup_grade"), "created_at": t.get("created_at")})
+    out.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    return {"day": day, "session": session, "count": len(out),
+            "total_pnl": round(sum(x["pnl"] for x in out), 2), "trades": out}
 
 @api.get("/insights/streak")
 async def rule_streak(user=Depends(get_current_user)):

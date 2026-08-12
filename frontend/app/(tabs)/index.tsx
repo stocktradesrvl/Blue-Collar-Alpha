@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, useWindowDimensions, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, useWindowDimensions, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -56,9 +56,11 @@ export default function Dashboard() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const A = useAccent().theme;
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [trial, setTrial] = useState<{ days: number } | null>(null);
+  const [annualUp, setAnnualUp] = useState<any>(null);
+  const [trialBusy, setTrialBusy] = useState(false);
   const [weekly, setWeekly] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<keyof typeof RANGES>("ALL");
@@ -109,6 +111,13 @@ export default function Dashboard() {
         else setTrial(null);
       } else setTrial(null);
     } catch {}
+    try {
+      const snooze = (await storage.getItem<number>("bca_annual_upsell_snooze", 0)) || 0;
+      if (Date.now() > snooze) {
+        const u = await api.get("/upsell/annual");
+        setAnnualUp(u?.show ? u : null);
+      } else setAnnualUp(null);
+    } catch {}
     setLoading(false);
   }, [mWindow, loadMistakes]);
 
@@ -141,6 +150,23 @@ export default function Dashboard() {
     setDismissedSig(habitSig);
     if (habitSig) storage.setItem(HABIT_DISMISS_KEY, habitSig);
   }, [habitSig]);
+
+  const startTrial = useCallback(async () => {
+    setTrialBusy(true);
+    try {
+      const r = await api.post("/user/start-trial", {});
+      await refresh();
+      await load();
+      Alert.alert("Premium unlocked 🎉", `Enjoy ${r?.trial_days || 7} days of Premium — AI Coach, GEX, market sentiment and more. No card needed; it auto-reverts when the trial ends.`);
+    } catch (e: any) {
+      Alert.alert("Couldn't start trial", e?.message || "Please try again.");
+    } finally { setTrialBusy(false); }
+  }, [refresh, load]);
+
+  const snoozeUpsell = useCallback(async () => {
+    setAnnualUp(null);
+    try { await storage.setItem("bca_annual_upsell_snooze", Date.now() + 14 * 86400000); } catch {}
+  }, []);
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.brand} size="large" /></View>;
 
@@ -204,6 +230,38 @@ export default function Dashboard() {
             </Text>
             <Ionicons name="chevron-forward" size={18} color={colors.onBrand} />
           </Pressable>
+        )}
+        {user?.subscription_tier === "free" && !user?.trial_used && (
+          <Animated.View entering={FadeInDown.duration(500)}>
+            <View style={[styles.trialCta, { borderColor: A.accent + "66" }]}>
+              <View style={styles.trialCtaTop}>
+                <View style={[styles.trialCtaIcon, { backgroundColor: A.accentTint }]}>
+                  <Ionicons name="sparkles" size={20} color={A.accent} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.trialCtaTitle}>Try Premium free for 7 days</Text>
+                  <Text style={styles.trialCtaSub}>AI Coach, GEX, market sentiment & daily reports. No card needed.</Text>
+                </View>
+              </View>
+              <Pressable testID="start-trial-btn" disabled={trialBusy} onPress={startTrial} style={[styles.trialCtaBtn, { backgroundColor: A.accent }]}>
+                {trialBusy ? <ActivityIndicator color={A.onAccent} /> : <Text style={[styles.trialCtaBtnTxt, { color: A.onAccent }]}>Start free trial</Text>}
+              </Pressable>
+            </View>
+          </Animated.View>
+        )}
+        {annualUp && (
+          <Animated.View entering={FadeInDown.duration(500)}>
+            <Pressable testID="annual-upsell" style={styles.annualBanner} onPress={() => router.push("/(tabs)/profile?billing=annual")}>
+              <View style={[styles.annualSaveTag, { backgroundColor: colors.success }]}>
+                <Text style={styles.annualSaveTxt}>SAVE {annualUp.savings_pct}%</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.annualTitle}>Go annual & save ${annualUp.savings_amount.toFixed(0)}/yr</Text>
+                <Text style={styles.annualSub}>${annualUp.annual_monthly_equiv.toFixed(2)}/mo billed yearly vs ${annualUp.monthly_amount.toFixed(2)}/mo</Text>
+              </View>
+              <Pressable testID="annual-dismiss" onPress={snoozeUpsell} hitSlop={10}><Ionicons name="close" size={18} color={colors.onSurface3} /></Pressable>
+            </Pressable>
+          </Animated.View>
         )}
         <Animated.View style={styles.hero} entering={FadeIn.duration(900)}>
           <Image source={backdropSource(backdrop)} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -528,6 +586,18 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   trialBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.brand, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg, ...glow(colors.brand, 0.4) },
   trialTxt: { flex: 1, color: colors.onBrand, fontFamily: font.display, fontSize: fs.base },
+  trialCta: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.lg, gap: spacing.md },
+  trialCtaTop: { flexDirection: "row", gap: spacing.md, alignItems: "center" },
+  trialCtaIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  trialCtaTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.lg },
+  trialCtaSub: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, marginTop: 1, lineHeight: 17 },
+  trialCtaBtn: { borderRadius: radius.md, paddingVertical: spacing.md, alignItems: "center" },
+  trialCtaBtnTxt: { fontFamily: font.displayBold, fontSize: fs.base },
+  annualBanner: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.success + "55", paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg },
+  annualSaveTag: { borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3 },
+  annualSaveTxt: { color: "#04210F", fontFamily: font.displayBold, fontSize: 11, letterSpacing: 0.5 },
+  annualTitle: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.base },
+  annualSub: { color: colors.onSurface3, fontFamily: font.text, fontSize: fs.sm, marginTop: 1 },
   hi: { color: colors.onSurface2, fontFamily: font.text, fontSize: fs.sm, textTransform: "uppercase", letterSpacing: 1.5 },
   balance: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: 42, marginTop: 2 },
   dailyPill: { backgroundColor: "rgba(22,27,34,0.7)", borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, alignItems: "flex-end" },
