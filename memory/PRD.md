@@ -144,3 +144,6 @@ Applied after a security audit; verified 24/24 backend tests (iter13_security).
 - "Remember my choice" checkbox persists default to AsyncStorage key bca_share_default ("took"|"idea"|"ask"); when set, future shares auto-save without prompting. Header shows a resettable chip ("Shared shots auto-save as trades/ideas · Reset") to clear back to ask. All in app/(tabs)/coach.tsx.
 - Verified: both save paths (took->taken/pending true, idea->taken false) via API; coach screen bundles/renders. Native share-sheet trigger requires a build (not testable in preview).
 - Minor known cosmetic: coach image-analysis reply contains markdown (##/**), rendered literally in the chat bubble.
+
+## Coach markdown cleanup (2026-08 fork) — DONE:
+- Added CoachText component in coach.tsx: renders the coach's light markdown (## headings -> bold heading, **bold** -> bold spans, -/* bullets -> •) as clean text. Applied to assistant bubbles. Verified: no raw ## or ** in rendered chat.

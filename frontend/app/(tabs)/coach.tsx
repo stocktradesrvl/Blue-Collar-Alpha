@@ -13,6 +13,33 @@ import { storage } from "@/src/utils/storage";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 
 const SHARE_PREF_KEY = "bca_share_default"; // "ask" | "took" | "idea"
+
+// Renders the coach's light markdown (## headings, **bold**, - bullets) as clean text.
+function CoachText({ text }: { text: string }) {
+  const lines = (text || "").replace(/\r/g, "").split("\n");
+  return (
+    <View>
+      {lines.map((raw, li) => {
+        if (raw.trim() === "") return <View key={li} style={{ height: 6 }} />;
+        let line = raw;
+        const h = line.match(/^\s*#{1,6}\s+(.*)$/);
+        const heading = !!h; if (h) line = h[1];
+        const b = line.match(/^\s*[-*•]\s+(.*)$/);
+        const bullet = !!b; if (b) line = b[1];
+        const parts = line.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
+        return (
+          <Text key={li} style={[styles.msgTxt, heading && styles.mdHeading]}>
+            {bullet ? "•  " : ""}
+            {parts.map((p, pi) => {
+              const bm = p.match(/^\*\*([^*]+)\*\*$/);
+              return bm ? <Text key={pi} style={styles.mdBold}>{bm[1]}</Text> : <Text key={pi}>{p}</Text>;
+            })}
+          </Text>
+        );
+      })}
+    </View>
+  );
+}
 import { useAccent } from "@/src/context/AccentContext";
 import { ScreenBackground } from "@/src/components/ui";
 
@@ -204,7 +231,7 @@ export default function Coach() {
           ) : (
             <LinearGradient key={i} colors={["rgba(46,118,232,0.16)", "rgba(22,27,34,0.95)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.ai]}>
               <Ionicons name="sparkles" size={14} color={A.accent} style={{ marginBottom: 4 }} />
-              <Text style={styles.msgTxt}>{m.content}</Text>
+              <CoachText text={m.content} />
             </LinearGradient>
           )
         ))}
@@ -282,6 +309,8 @@ const styles = StyleSheet.create({
   user: { backgroundColor: colors.brand, alignSelf: "flex-end", borderBottomRightRadius: radius.sm },
   ai: { backgroundColor: colors.surface2, alignSelf: "flex-start", borderWidth: 1, borderColor: colors.borderStrong, borderBottomLeftRadius: radius.sm },
   msgTxt: { color: colors.onSurface, fontFamily: font.text, fontSize: fs.lg, lineHeight: 22 },
+  mdHeading: { fontFamily: font.displayBold, fontSize: fs.lg, color: colors.onSurface, marginTop: 2 },
+  mdBold: { fontFamily: font.displayBold, color: colors.onSurface },
   sharedImg: { width: 200, height: 130, borderRadius: radius.md, marginBottom: spacing.sm, backgroundColor: colors.surface3 },
   tradePrompt: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginTop: spacing.sm, gap: spacing.sm },
   tradePromptQ: { color: colors.onSurface, fontFamily: font.displayBold, fontSize: fs.lg, marginBottom: spacing.xs },
