@@ -10,6 +10,7 @@ import { useToast } from "@/src/context/ToastContext";
 import { useVoiceNote } from "@/src/hooks/useVoiceNote";
 import { useSpeak } from "@/src/hooks/useSpeak";
 import { useShareIntentContext } from "@/src/context/ShareIntentContext";
+import { PENDING_SHARE_KEY } from "@/app/capture";
 import { storage } from "@/src/utils/storage";
 import { colors, spacing, radius, font, fs, gradients, glow } from "@/src/theme";
 
@@ -70,7 +71,7 @@ export default function Coach() {
   const toast = useToast();
   const voice = useVoiceNote(toast, false);
   const speaker = useSpeak(toast);
-  const { pending, clear } = useShareIntentContext();
+  const { pending, setPending, clear } = useShareIntentContext();
   const processingShare = useRef(false);
   const [sharedB64, setSharedB64] = useState<string | null>(null);
   const [askTrade, setAskTrade] = useState(false);
@@ -145,6 +146,15 @@ export default function Coach() {
     clear();
     analyzeShared(b64);
   }, [pending, locked, clear, analyzeShared, toast]);
+
+  // Pick up a screenshot stashed by the background capture screen (e.g. after the
+  // user taps the "trade captured" notification, including from a cold start).
+  useEffect(() => {
+    (async () => {
+      const stored = await storage.getItem<string>(PENDING_SHARE_KEY, "");
+      if (stored) { await storage.removeItem(PENDING_SHARE_KEY); setPending({ base64: stored }); }
+    })();
+  }, [setPending]);
 
   const onMicPress = async () => {
     if (busy) return;

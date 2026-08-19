@@ -255,6 +255,7 @@ class ScreenshotIn(BaseModel):
     strategy_ids: Optional[List[str]] = None
     taken: bool = True
     pending: bool = False
+    preview: bool = False   # analyze only, don't save (used by the share-to-notify flow)
 
 class PreTradeIn(BaseModel):
     image_base64: str
@@ -842,6 +843,16 @@ async def analyze_screenshot(inp: ScreenshotIn, user=Depends(get_current_user)):
         adv = {}
     # Flatten any nested values so the client never renders raw objects.
     advanced = {sstr(k): (v if isinstance(v, (str, int, float, bool)) else sstr(v)) for k, v in adv.items()}
+
+    # Preview mode: return the read WITHOUT saving (used by share-to-notification).
+    if inp.preview:
+        return {"preview": True,
+                "symbol": sstr(data.get("symbol"), "N/A").upper(),
+                "direction": sstr(data.get("direction"), "long"),
+                "pnl": num(data.get("pnl")),
+                "setup_grade": grade,
+                "detected_setup": sstr(data.get("detected_setup"), "Setup"),
+                "ai_summary": sstr(data.get("ai_summary"))}
 
     doc = {
         "id": str(uuid.uuid4()), "user_id": user["id"],

@@ -104,3 +104,6 @@ Goal: replace the login/dashboard quotes with a market-sentiment overview. PREMI
 ### Parked / Needs decision
 - Sender display name: currently "Blue Collar Alpha" (change to "Montana Horizon Ventures"?)
 - Production URL cutover for Pi (GEX push + weekly digest cron) after Publish
+
+### Share intent
+- [x] Share a screenshot -> background analyze + local notification with the read (tap to open Coach); best-effort background on managed Expo (native-only, test on device)

@@ -16,6 +16,7 @@ import { AccentProvider } from "@/src/context/AccentContext";
 import { ModalQueueProvider } from "@/src/context/ModalQueue";
 import { ShareIntentProvider } from "@/src/context/ShareIntentContext";
 import ShareIntentHandler from "@/src/components/ShareIntentHandler";
+import NotificationRouter from "@/src/components/NotificationRouter";
 import { colors } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
@@ -98,6 +99,7 @@ export default function RootLayout() {
                   <StatusBar style="light" />
                   <RootNavigator />
                   <ShareIntentHandler />
+                  <NotificationRouter />
                 </ShareIntentProvider>
               </ModalQueueProvider>
             </AccentProvider>

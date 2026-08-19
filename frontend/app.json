@@ -28,7 +28,8 @@
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS"
       ],
       "blockedPermissions": [
         "com.google.android.gms.permission.AD_ID"
@@ -65,6 +66,12 @@
           "iosActivationRules": {
             "NSExtensionActivationSupportsImageWithMaxCount": 1
           }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#2E76E8"
         }
       ]
     ],

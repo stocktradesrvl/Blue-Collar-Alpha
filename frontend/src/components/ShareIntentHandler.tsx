@@ -8,7 +8,9 @@ import { useAuth } from "@/src/context/AuthContext";
 
 /**
  * Listens for images shared into the app from Android's share sheet (or iOS share
- * extension) and routes them into the Coach section for AI analysis. Renders nothing.
+ * extension) and hands them to the background capture screen, which analyzes the
+ * shot and fires a notification instead of forcing the app in front of the broker.
+ * Renders nothing.
  */
 export default function ShareIntentHandler() {
   const router = useRouter();
@@ -27,7 +29,7 @@ export default function ShareIntentHandler() {
         const uri = file.path.startsWith("file://") || file.path.startsWith("content://") ? file.path : `file://${file.path}`;
         const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
         setPending({ base64 });
-        if (user) router.replace("/(tabs)/coach");
+        if (user) router.replace("/capture");
         else router.replace("/(auth)/login");
       } catch (e) {
         // ignore unreadable shares
