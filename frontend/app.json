@@ -1,7 +1,8 @@
 {
   "expo": {
+    "jsEngine": "jsc",
     "name": "Blue Collar Alpha",
-    "slug": "frontend",
+    "slug": "strategy-tracker-16",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -60,12 +61,10 @@
       [
         "expo-share-intent",
         {
+          "disableIOS": true,
           "androidIntentFilters": [
             "image/*"
-          ],
-          "iosActivationRules": {
-            "NSExtensionActivationSupportsImageWithMaxCount": 1
-          }
+          ]
         }
       ],
       [
@@ -77,6 +76,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ede08bae-5d45-47d1-a63e-4ce8cc2fc41e"
+      }
     }
   }
 }
