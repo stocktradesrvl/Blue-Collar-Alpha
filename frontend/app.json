@@ -13,6 +13,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.strategytracker.odqwcf",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Capture trade screenshots for AI analysis",
         "NSPhotoLibraryUsageDescription": "Upload trade screenshots for AI analysis",
         "NSMicrophoneUsageDescription": "Record voice notes to journal your trades"
