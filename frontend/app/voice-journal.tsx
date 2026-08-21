@@ -58,7 +58,7 @@ export default function VoiceJournal() {
   };
 
   const remove = async (id: string) => {
-    try { await api.delete(`/journal/voice-note/${id}`); await load(); } catch {}
+    try { await api.del(`/journal/voice-note/${id}`); await load(); } catch {}
   };
 
   if (locked) {
