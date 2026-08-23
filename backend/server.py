@@ -139,6 +139,119 @@ async def health():
     """Unauthenticated liveness probe for the deployment platform (K8s)."""
     return {"status": "ok"}
 
+
+_LEGAL_CONTACT = "russelllewis@montanahorizonventuresllc.com"
+
+def _legal_page(title: str, body_html: str) -> str:
+    return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blue Collar Alpha — {title}</title>
+<style>
+  :root {{ color-scheme: dark; }}
+  body {{ margin:0; background:#0D1117; color:#E6EDF3; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; line-height:1.6; }}
+  .wrap {{ max-width:760px; margin:0 auto; padding:32px 20px 64px; }}
+  h1 {{ font-size:26px; margin:0 0 4px; }}
+  h2 {{ font-size:18px; margin:28px 0 8px; color:#58A6FF; }}
+  p, li {{ font-size:15px; color:#C9D1D9; }}
+  a {{ color:#58A6FF; }}
+  .muted {{ color:#8B949E; font-size:13px; }}
+  .card {{ background:#161B22; border:1px solid #30363D; border-radius:12px; padding:18px 20px; margin-top:16px; }}
+</style></head><body><div class="wrap">
+<h1>Blue Collar Alpha</h1>
+<p class="muted">{title} · Last updated {datetime.now(timezone.utc).strftime('%B %d, %Y')}</p>
+<div class="card">{body_html}</div>
+<p class="muted" style="margin-top:24px">Contact: <a href="mailto:{_LEGAL_CONTACT}">{_LEGAL_CONTACT}</a></p>
+</div></body></html>"""
+
+@app.get("/api/legal/privacy", response_class=HTMLResponse)
+async def legal_privacy():
+    body = f"""
+<h2>Overview</h2>
+<p>Blue Collar Alpha ("the App") is a trading journal and AI coaching/analytics tool for self-directed traders.
+It is for educational and informational purposes only and does <strong>not</strong> provide financial advice,
+recommendations, or predictions, and does <strong>not</strong> place trades or connect to any brokerage account.</p>
+
+<h2>Information We Collect</h2>
+<ul>
+<li><strong>Account information:</strong> your email address and a securely hashed password (bcrypt). If you choose to link Discord, we store your Discord user ID and username.</li>
+<li><strong>Trading journal data you provide:</strong> trades, notes, strategies/rules, self-reported account and broker balances, and screenshots you upload or share to the App for analysis.</li>
+<li><strong>Voice notes:</strong> if you use voice journaling, audio you record is transcribed to text for analysis.</li>
+<li><strong>Usage data:</strong> basic information needed to operate features (e.g., subscription status).</li>
+</ul>
+<p>We do <strong>not</strong> collect or store your brokerage login credentials, bank credentials, or brokerage API keys. Balances are entered manually by you.</p>
+
+<h2>How We Use Information</h2>
+<ul>
+<li>To provide the journal, analytics, AI setup grading, and AI coaching features.</li>
+<li>To send account emails you request (e.g., password reset) and optional weekly summaries.</li>
+<li>To process subscriptions.</li>
+</ul>
+
+<h2>AI Processing</h2>
+<p>Screenshots, trade details, notes, and voice transcripts you submit are sent to third-party AI providers
+(via our large-language-model and speech-to-text providers) solely to generate the analysis, grades, coaching
+responses, and transcriptions you request.</p>
+
+<h2>Third-Party Services</h2>
+<ul>
+<li><strong>Stripe</strong> — payment processing for subscriptions.</li>
+<li><strong>Resend</strong> — transactional and summary emails.</li>
+<li><strong>Discord</strong> — optional account linking and community features.</li>
+<li><strong>Market data</strong> — publicly available market indicators (e.g., index/VIX/futures quotes and a crypto Fear &amp; Greed index) used to display general market sentiment.</li>
+<li><strong>AI/LLM &amp; speech-to-text providers</strong> — to power analysis, coaching, and voice transcription.</li>
+</ul>
+<p>We do not use advertising SDKs, and the App does not include third-party analytics or crash-reporting SDKs.</p>
+
+<h2>Data Storage &amp; Security</h2>
+<p>Data is stored in our managed database. Authentication uses JSON Web Tokens; your session token is stored in your device's secure storage. Passwords are stored only as bcrypt hashes.</p>
+
+<h2>Your Choices &amp; Account Deletion</h2>
+<p>You can delete your account at any time from within the App (Profile → Delete Account), which removes your
+account, journal data, and cancels any active subscription. You may also contact us to request deletion.</p>
+
+<h2>Children</h2>
+<p>The App is not directed to children under 13 (or the minimum age in your jurisdiction) and is intended for adults.</p>
+
+<h2>Changes</h2>
+<p>We may update this policy; material changes will be reflected on this page with a new "Last updated" date.</p>
+"""
+    return HTMLResponse(_legal_page("Privacy Policy", body))
+
+@app.get("/api/legal/terms", response_class=HTMLResponse)
+async def legal_terms():
+    body = """
+<h2>Acceptance</h2>
+<p>By using Blue Collar Alpha ("the App") you agree to these Terms. If you do not agree, do not use the App.</p>
+
+<h2>Not Financial Advice</h2>
+<p>The App is an educational trading journal and analytics/coaching tool. All content, grades, and AI responses
+are for informational and educational purposes only and are <strong>not</strong> financial advice, recommendations,
+or predictions. The App does not place trades and does not connect to any brokerage account. Trading involves
+substantial risk of loss, and you are solely responsible for your own decisions.</p>
+
+<h2>Accounts</h2>
+<p>You are responsible for maintaining the confidentiality of your login and for all activity under your account.</p>
+
+<h2>Subscriptions</h2>
+<p>Paid tiers are billed through Stripe on a recurring basis until cancelled. Prices and features are shown in the App.
+Where a free trial is offered, it converts to a paid subscription unless cancelled before the trial ends.</p>
+
+<h2>Acceptable Use</h2>
+<p>You agree not to misuse the App, attempt to disrupt the service, or use it for unlawful purposes.</p>
+
+<h2>Disclaimer &amp; Limitation of Liability</h2>
+<p>The App is provided "as is" without warranties of any kind. To the maximum extent permitted by law, we are not
+liable for any trading losses or damages arising from your use of the App.</p>
+
+<h2>Termination</h2>
+<p>You may stop using and delete your account at any time. We may suspend or terminate access for violations of these Terms.</p>
+
+<h2>Changes</h2>
+<p>We may update these Terms; continued use after changes constitutes acceptance.</p>
+"""
+    return HTMLResponse(_legal_page("Terms of Service", body))
+
+
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
