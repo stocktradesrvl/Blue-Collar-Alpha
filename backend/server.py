@@ -132,6 +132,13 @@ UPSELL_MIN_MONTHS = 2        # months on monthly billing before the annual upsel
 
 app = FastAPI()
 api = APIRouter(prefix="/api")
+
+
+@app.get("/health")
+async def health():
+    """Unauthenticated liveness probe for the deployment platform (K8s)."""
+    return {"status": "ok"}
+
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
