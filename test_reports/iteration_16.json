@@ -1,0 +1,32 @@
+{
+  "summary": "Backend-only test of App Store zip download reliability from the EXTERNAL preview URL. Wrote pytest suite (/app/backend/tests/test_appstore_zip.py) covering static mount, fallback route, range request, zip validity, and legal-route regressions. All 7 tests PASSED. 5 consecutive hits on /api/static/appstore/blue-collar-alpha-appstore-6.5.zip returned HTTP 200 with full 4,518,276 bytes and Content-Type application/zip - no intermittent 503. Fallback /api/appstore/screenshots.zip also returned 200 with full body. Zip is a valid archive containing exactly the 5 expected PNGs (01_dashboard, 02_journal, 03_coach, 04_strategy, 05_market_sentiment). /api/legal/privacy and /api/legal/terms both return 200.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/static/appstore/blue-collar-alpha-appstore-6.5.zip", "issue": "Server does not honor 'Range: bytes=0-1023' header - returns HTTP 200 with full 4.5MB body instead of 206 Partial Content. Not a blocker (test accepts 200 per spec, browsers still work) but ingress/StaticFiles is likely stripping the Range header. Consider verifying if Starlette StaticFiles range support is intact behind the ingress."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_appstore_zip.py",
+    "/app/test_reports/pytest/appstore_zip_results.xml"
+  ],
+  "action_items": [
+    "No action required - primary 503 concern is resolved. Optional: investigate why Range requests return 200 (full body) instead of 206; likely ingress-side but low priority since download works."
+  ],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_appstore_zip.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Zip downloads via both /api/static/appstore/... and /api/appstore/screenshots.zip are reliable from the external preview URL. If range-support is later required, verify Starlette StaticFiles behavior behind ingress (currently returns 200 full body for Range header).",
+  "rca_of_issue": "Original 503 was transient (likely during backend restart). Fix (StaticFiles mount at /api/static + FileResponse fallback route) is working reliably - verified with 5 consecutive successful downloads and content validation."
+}

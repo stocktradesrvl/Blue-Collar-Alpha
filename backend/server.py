@@ -30,6 +30,7 @@ if not JWT_SECRET or len(JWT_SECRET) < 16:
 import stripe
 from fastapi import Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from urllib.parse import quote, urlencode, urlparse
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 BACKEND_URL = os.environ.get('EXPO_BACKEND_URL') or ''
@@ -2843,6 +2844,12 @@ async def config():
             "discord_enabled": _discord_configured()}
 
 app.include_router(api)
+
+# Serve generated static artifacts (e.g. App Store screenshot bundle) with proper
+# range/caching support — more proxy-friendly than a dynamic response for large files.
+_STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+os.makedirs(_STATIC_DIR, exist_ok=True)
+app.mount("/api/static", StaticFiles(directory=_STATIC_DIR), name="static")
 app.add_middleware(CORSMiddleware, allow_credentials=False, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
