@@ -251,6 +251,16 @@ liable for any trading losses or damages arising from your use of the App.</p>
 """
     return HTMLResponse(_legal_page("Terms of Service", body))
 
+@app.get("/api/appstore/screenshots.zip")
+async def appstore_screenshots_zip():
+    """Serves the generated App Store screenshot bundle (iPhone 6.5")."""
+    from fastapi.responses import FileResponse
+    path = "/app/backend/static/appstore/blue-collar-alpha-appstore-6.5.zip"
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Screenshots not generated yet")
+    return FileResponse(path, media_type="application/zip", filename="blue-collar-alpha-appstore-6.5.zip")
+
+
 
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 logger = logging.getLogger(__name__)
