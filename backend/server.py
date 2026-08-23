@@ -276,6 +276,94 @@ async def force_download(fname: str):
                                 headers={"Cache-Control": "no-store, max-age=0"})
     raise HTTPException(status_code=404, detail="not found")
 
+@app.get("/api/pic/{fname}", response_class=HTMLResponse)
+async def pic_page(fname: str):
+    """A self-contained page: shows the screenshot inline (right-click / long-press to
+    save) AND a Download button that builds the file locally via a blob — so the actual
+    image bytes are never re-fetched over the network (immune to any edge/CDN issue)."""
+    if "/" in fname or ".." in fname:
+        raise HTTPException(status_code=400, detail="bad name")
+    path = None
+    for sub in ("appstore-ipad", "appstore"):
+        p = os.path.join(_STATIC_DIR, sub, fname)
+        if os.path.exists(p):
+            path = p
+            break
+    if not path:
+        raise HTTPException(status_code=404, detail="not found")
+    with open(path, "rb") as fh:
+        b64 = base64.b64encode(fh.read()).decode()
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{fname}</title>
+<style>body{{margin:0;background:#0D1117;color:#E6EDF3;font-family:-apple-system,Roboto,Arial,sans-serif;text-align:center;padding:16px}}
+img{{max-width:100%;height:auto;border:1px solid #30363D;border-radius:8px}}
+a.btn{{display:inline-block;margin:14px 0;background:#2E76E8;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:700}}
+p{{color:#8B949E;font-size:13px}}</style></head><body>
+<h3>{fname}</h3>
+<a class="btn" id="dl" download="{fname}">⬇ Download {fname}</a>
+<p>Or long-press / right-click the image below and choose “Save image”.</p>
+<img id="img" alt="{fname}"/>
+<script>
+var b64="{b64}";
+var bytes=atob(b64), arr=new Uint8Array(bytes.length);
+for(var i=0;i<bytes.length;i++)arr[i]=bytes.charCodeAt(i);
+var blob=new Blob([arr],{{type:'image/png'}});
+var url=URL.createObjectURL(blob);
+document.getElementById('img').src=url;
+var a=document.getElementById('dl');a.href=url;
+</script></body></html>"""
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, max-age=0"})
+
+
+@app.get("/api/gallery", response_class=HTMLResponse)
+async def appstore_gallery():
+    """One page listing every generated App Store screenshot with a real
+    Download button (direct href to /api/dl/{fname}, download attribute) plus a
+    thumbnail preview. Hand the user THIS single URL."""
+    groups = [
+        ("iPhone 6.5\" — 1242 x 2688", "appstore"),
+        ("iPad 12.9\" — 2048 x 2732", "appstore-ipad"),
+    ]
+    cards = ""
+    for title, sub in groups:
+        d = os.path.join(_STATIC_DIR, sub)
+        if not os.path.isdir(d):
+            continue
+        pngs = sorted(f for f in os.listdir(d) if f.lower().endswith(".png"))
+        zips = sorted(f for f in os.listdir(d) if f.lower().endswith(".zip"))
+        cards += f'<h2>{title}</h2>'
+        if zips:
+            for z in zips:
+                cards += (f'<a class="btn zip" href="/api/dl/{z}" download="{z}">'
+                          f'⬇ Download all as ZIP ({z})</a>')
+        cards += '<div class="grid">'
+        for f in pngs:
+            cards += (f'<div class="card">'
+                      f'<img src="/api/dl/{f}" alt="{f}" loading="lazy"/>'
+                      f'<div class="name">{f}</div>'
+                      f'<a class="btn" href="/api/dl/{f}" download="{f}">⬇ Download</a>'
+                      f'</div>')
+        cards += '</div>'
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blue Collar Alpha — App Store Screenshots</title>
+<style>
+body{{margin:0;background:#0D1117;color:#E6EDF3;font-family:-apple-system,Roboto,Arial,sans-serif;padding:20px 16px 60px;}}
+h1{{font-size:22px;margin:0 0 4px}} h2{{font-size:16px;color:#58A6FF;margin:28px 0 12px;border-bottom:1px solid #30363D;padding-bottom:8px}}
+p.hint{{color:#8B949E;font-size:13px;margin:0 0 8px}}
+.grid{{display:flex;flex-wrap:wrap;gap:16px}}
+.card{{background:#161B22;border:1px solid #30363D;border-radius:12px;padding:10px;width:190px;text-align:center}}
+.card img{{width:100%;height:auto;border-radius:8px;border:1px solid #30363D;background:#000}}
+.name{{font-size:11px;color:#8B949E;margin:8px 0 6px;word-break:break-all}}
+a.btn{{display:inline-block;background:#2E76E8;color:#fff;text-decoration:none;padding:9px 16px;border-radius:9px;font-weight:700;font-size:13px}}
+a.btn.zip{{background:#238636;margin:0 8px 14px 0}}
+</style></head><body>
+<h1>Blue Collar Alpha — App Store Screenshots</h1>
+<p class="hint">Tap “Download” under any image to save the full-resolution PNG. On desktop you can also right-click an image → “Save image as…”.</p>
+{cards}
+</body></html>"""
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, max-age=0"})
 
 
 
