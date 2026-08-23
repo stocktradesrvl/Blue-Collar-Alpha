@@ -261,6 +261,22 @@ async def appstore_screenshots_zip():
         raise HTTPException(status_code=404, detail="Screenshots not generated yet")
     return FileResponse(path, media_type="application/zip", filename="blue-collar-alpha-appstore-6.5.zip")
 
+@app.get("/api/dl/{fname}")
+async def force_download(fname: str):
+    """Force-download any generated screenshot/zip (Content-Disposition: attachment,
+    no-store so no edge/CDN layer caches the response)."""
+    from fastapi.responses import FileResponse
+    if "/" in fname or ".." in fname:
+        raise HTTPException(status_code=400, detail="bad name")
+    for sub in ("appstore-ipad", "appstore"):
+        path = os.path.join(_STATIC_DIR, sub, fname)
+        if os.path.exists(path):
+            mt = "application/zip" if fname.endswith(".zip") else "image/png"
+            return FileResponse(path, media_type=mt, filename=fname,
+                                headers={"Cache-Control": "no-store, max-age=0"})
+    raise HTTPException(status_code=404, detail="not found")
+
+
 
 
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
